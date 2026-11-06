@@ -37,6 +37,10 @@ const S = {
   pro: { enabled: false },
   statsOpen: false,
   queryOpen: false,
+  cellOpen: false, // cell panel with the full value of the focused cell
+  cellReq: 0,
+  cellData: null,
+  cellPretty: true,
 };
 
 function el(tag, cls, text) {
@@ -77,7 +81,22 @@ btnStats.title = 'Count, nulls, distinct, min, max, mean and top values for each
 const btnExport = el('button', 'btn', 'Export');
 btnExport.title = 'Save the rows in view (filtered and sorted) as CSV, TSV, JSON or JSON Lines';
 btnQuery.hidden = btnStats.hidden = btnExport.hidden = true;
-toolbar.append(title, fmtBadge, stats, spacer, sheetSel, search, btnQuery, btnSchema, btnStats, btnCsv, btnJson, btnExport, proBadge);
+// CSV/TSV only: pick the delimiter and say whether the first line is a header. The file is read again.
+const csvBox = el('span', 'csvopts');
+csvBox.hidden = true;
+const delimLabel = el('label', 'csvopt', 'Delimiter ');
+const delimSel = el('select', 'sheet');
+delimSel.setAttribute('aria-label', 'Delimiter');
+delimSel.title = 'How the columns are split. Auto guesses from the first lines.';
+delimLabel.append(delimSel);
+const headerLabel = el('label', 'csvopt');
+const headerChk = el('input');
+headerChk.type = 'checkbox';
+headerChk.checked = true;
+headerChk.title = 'Off: the first line is data and the columns are named column_1, column_2, ...';
+headerLabel.append(headerChk, document.createTextNode(' Header row'));
+csvBox.append(delimLabel, headerLabel);
+toolbar.append(title, fmtBadge, stats, spacer, csvBox, sheetSel, search, btnQuery, btnSchema, btnStats, btnCsv, btnJson, btnExport, proBadge);
 
 const queryBar = el('div', 'querybar');
 queryBar.hidden = true;
@@ -110,6 +129,24 @@ stage.append(head, filterRow, body);
 sizer.append(stage);
 grid.append(sizer);
 
+// Cell panel: the full value of the focused cell, wrapped, with JSON indented.
+const cellPanel = el('div', 'cellpanel');
+cellPanel.hidden = true;
+const cellHead = el('div', 'cellhead');
+const cellCap = el('span', 'cellcap');
+const cellSpacer = el('span', 'spacer');
+const btnPretty = el('button', 'btn', 'Raw');
+btnPretty.title = 'Switch between indented JSON and the raw text';
+btnPretty.hidden = true;
+const btnCopyCell = el('button', 'btn', 'Copy value');
+btnCopyCell.title = 'Copy the full value as shown';
+const btnCloseCell = el('button', 'btn', 'Close');
+btnCloseCell.title = 'Close the panel (Esc)';
+cellHead.append(cellCap, cellSpacer, btnPretty, btnCopyCell, btnCloseCell);
+const cellValue = el('pre', 'cellvalue');
+cellValue.tabIndex = 0;
+cellPanel.append(cellHead, cellValue);
+
 const status = el('div', 'status');
 const statusLeft = el('span', 'left');
 const statusMid = el('span', 'mid');
@@ -118,7 +155,7 @@ status.append(statusLeft, statusMid, statusRight);
 // The host renders the Sponsor / More free viewers line only when tableViewer.showSupportLinks is on.
 const supportLine = document.getElementById('zovo-support');
 if (supportLine) status.append(supportLine);
-app.append(toolbar, queryBar, banner, schemaPanel, statsPanel, grid, status);
+app.append(toolbar, queryBar, banner, schemaPanel, statsPanel, grid, cellPanel, status);
 
 // ---------- header ----------
 function totalWidth() { return GUTTER_W + S.widths.reduce((a, b) => a + b, 0); }
@@ -142,7 +179,9 @@ function buildHeader() {
     if (S.sort && S.sort.col === c) arrow.textContent = S.sort.dir === 'asc' ? '▲' : '▼';
     h.title = `${col.name}\n${type.title}\nClick to sort`;
     const grip = el('span', 'grip');
+    grip.title = 'Drag to resize. Double-click to fit the content.';
     grip.addEventListener('mousedown', e => startResize(e, c));
+    grip.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); fitColumn(c); });
     h.append(name, type, arrow, grip);
     h.addEventListener('click', e => {
       if (e.target === grip) return;
@@ -199,6 +238,18 @@ window.addEventListener('mousemove', e => {
   }
 });
 window.addEventListener('mouseup', () => { if (resize) saveView(); resize = null; S.dragging = false; });
+
+/** Fit one column to the widest value in the rows loaded so far. */
+function fitColumn(c) {
+  const col = S.columns[c];
+  if (!col) return;
+  const samples = [];
+  for (const page of S.cache.values()) for (const row of page) samples.push(row.cells[c]);
+  S.widths[c] = M.fitWidth(col.name, col.type, samples);
+  applyWidths();
+  saveView();
+  flash(`Fitted ${col.name} to ${fmtN(samples.length)} loaded rows`);
+}
 
 function applyWidths() {
   const hs = head.querySelectorAll('.hcell');
@@ -376,7 +427,81 @@ body.addEventListener('mousedown', e => {
   S.dragging = !hit.gutter;
   paintSelection();
   updateStatus();
+  if (S.cellOpen && !hit.gutter) requestCell();
 });
+
+body.addEventListener('dblclick', e => {
+  const hit = cellAt(e.clientX, e.clientY);
+  if (!hit || hit.gutter) return;
+  e.preventDefault();
+  S.anchor = { r: hit.r, c: hit.c };
+  S.focus = { r: hit.r, c: hit.c };
+  S.dragging = false;
+  render();
+  updateStatus();
+  openCell();
+});
+
+// ---------- cell panel ----------
+function openCell() {
+  if (!S.focus) return;
+  const wasOpen = S.cellOpen;
+  S.cellOpen = true;
+  cellPanel.hidden = false;
+  requestCell();
+  if (!wasOpen) layout();
+  ensureVisible(S.focus.r);
+}
+
+function closeCell() {
+  S.cellOpen = false;
+  S.cellData = null;
+  S.cellReq = 0;
+  cellPanel.hidden = true;
+  layout();
+  grid.focus();
+}
+
+function requestCell() {
+  if (!S.cellOpen) return;
+  if (!S.focus) { S.cellData = null; renderCell(); return; }
+  const reqId = S.reqId++;
+  S.cellReq = reqId;
+  vscode.postMessage({ type: 'getCell', reqId, row: S.focus.r, col: S.focus.c });
+}
+
+function shownCellText() {
+  const d = S.cellData;
+  if (!d || d.value === null || d.value === undefined) return '';
+  return M.cellText(d.value, S.columns[d.col] ? S.columns[d.col].type : '', S.cellPretty).text;
+}
+
+function renderCell() {
+  const d = S.cellData;
+  if (!d) {
+    cellCap.textContent = 'Click a cell to see its full value.';
+    cellValue.textContent = '';
+    btnPretty.hidden = true;
+    btnCopyCell.disabled = true;
+    return;
+  }
+  const col = S.columns[d.col];
+  const view = M.cellText(d.value, col ? col.type : '', S.cellPretty);
+  cellCap.textContent = M.cellCaption(d.id + 1, col, d.length, d.truncated) + (view.json ? ' · JSON' : '');
+  cellValue.textContent = d.value === null ? '' : view.text;
+  cellValue.classList.toggle('null', d.value === null);
+  btnPretty.hidden = !view.json;
+  btnPretty.textContent = S.cellPretty ? 'Raw' : 'Indented';
+  btnCopyCell.disabled = d.value === null;
+}
+
+btnCloseCell.addEventListener('click', closeCell);
+btnPretty.addEventListener('click', () => { S.cellPretty = !S.cellPretty; renderCell(); });
+btnCopyCell.addEventListener('click', () => {
+  if (!S.cellData || S.cellData.value === null) return;
+  vscode.postMessage({ type: 'copyText', text: shownCellText() });
+});
+cellPanel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); closeCell(); } });
 
 function selectAll() {
   if (!S.rowCount || !S.columns.length) return;
@@ -405,6 +530,8 @@ grid.addEventListener('keydown', e => {
   if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); selectAll(); return; }
   if (mod && e.key.toLowerCase() === 'c') { e.preventDefault(); copy('tsv', false); return; }
   if (!S.focus) return;
+  if (e.key === 'Enter' && !mod) { e.preventDefault(); openCell(); return; }
+  if (e.key === 'Escape' && S.cellOpen) { e.preventDefault(); closeCell(); return; }
   const moves = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], PageUp: [-20, 0], PageDown: [20, 0] };
   const m = moves[e.key];
   if (!m) { if (e.key === 'Escape') { S.anchor = S.focus = null; render(); updateStatus(); } return; }
@@ -419,6 +546,7 @@ grid.addEventListener('keydown', e => {
   ensureColVisible(f.c);
   render();
   updateStatus();
+  if (S.cellOpen) requestCell();
 });
 
 function copy(format, header = true) {
@@ -506,6 +634,27 @@ sheetSel.addEventListener('change', () => {
   vscode.postMessage({ type: 'sheet', name: sheetSel.value });
 });
 
+// ---------- CSV options ----------
+function renderCsvOptions() {
+  const text = S.format === 'csv' || S.format === 'tsv';
+  csvBox.hidden = !text || !!S.error && !S.columns.length;
+  if (!text) return;
+  const { choices, selected } = M.delimiterChoices(S.info);
+  delimSel.textContent = '';
+  for (const ch of choices) { const o = el('option', null, ch.label); o.value = ch.value; delimSel.append(o); }
+  delimSel.value = selected;
+  headerChk.checked = S.info.header !== false;
+  delimSel.disabled = headerChk.disabled = S.loading;
+}
+function sendCsvOptions() {
+  if (S.loading) return flash('Still loading. Change the delimiter when all rows are in.');
+  flash('Reading the file again…', true);
+  delimSel.disabled = headerChk.disabled = true;
+  vscode.postMessage({ type: 'csvOptions', delimiter: delimSel.value, header: headerChk.checked });
+}
+delimSel.addEventListener('change', sendCsvOptions);
+headerChk.addEventListener('change', sendCsvOptions);
+
 // ---------- schema panel ----------
 function kv(parent, k, v) {
   if (v === undefined || v === null || v === '') return;
@@ -581,7 +730,7 @@ function updateStatus() {
   const sel = currentSel();
   statusLeft.textContent = sel
     ? `Selected ${fmtN(sel.r1 - sel.r0 + 1)} × ${fmtN(sel.c1 - sel.c0 + 1)}` + (sel.r0 === sel.r1 && sel.c0 === sel.c1 && S.columns[sel.c0] ? ` · ${S.columns[sel.c0].name} (${S.columns[sel.c0].type})` : '')
-    : 'Click a cell, drag or Shift+click to select. Ctrl/Cmd+C copies as TSV.';
+    : 'Click a cell, drag or Shift+click to select. Double-click or Enter shows the full value. Ctrl/Cmd+C copies as TSV.';
   statusRight.textContent = S.timing;
   search.disabled = S.loading;
   btnCsv.disabled = btnJson.disabled = S.loading && !S.rowCount;
@@ -662,6 +811,8 @@ window.addEventListener('message', ev => {
       }
       if (!S.loading) statusMid.textContent = '';
       showBanner();
+      renderCsvOptions();
+      if (S.cellOpen) { if (!S.focus || S.focus.r >= S.rowCount || S.focus.c >= S.columns.length) { S.anchor = S.focus = null; S.cellData = null; renderCell(); } else requestCell(); }
       renderSchema();
       updateStatus();
       layout();
@@ -700,6 +851,7 @@ window.addEventListener('message', ev => {
       S.cache.clear();
       S.pending.clear();
       S.anchor = S.focus = null;
+      if (S.cellOpen) { S.cellData = null; renderCell(); }
       updateSortArrows();
       queryErr.textContent = '';
       flash(`Done in ${fmtN(msg.ms)} ms`);
@@ -725,6 +877,15 @@ window.addEventListener('message', ev => {
     case 'exported':
       flash(msg.ok ? `Exported ${fmtN(msg.rows)} rows (${M.formatBytes(msg.bytes)})` : 'Export failed.');
       break;
+    case 'cell':
+      if (msg.reqId !== S.cellReq || !S.cellOpen) break;
+      if (msg.version !== S.version || msg.missing) { S.cellData = null; renderCell(); break; }
+      S.cellData = { id: msg.id, col: msg.col, value: msg.value, length: msg.length, truncated: !!msg.truncated };
+      renderCell();
+      break;
+    case 'copiedText':
+      flash(`Copied the value (${fmtN(msg.chars)} characters)`);
+      break;
     case 'requestCopy':
       copy(msg.format === 'json' ? 'json' : 'csv');
       break;
@@ -740,6 +901,7 @@ window.addEventListener('message', ev => {
       if (msg.transient) { flash(msg.message); break; }
       S.error = msg.message;
       S.loading = false;
+      renderCsvOptions();
       showBanner();
       updateStatus();
       break;

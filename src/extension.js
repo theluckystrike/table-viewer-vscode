@@ -15,7 +15,10 @@ let rating = { success() {} };
 
 const VIEW_TYPE = 'tableViewer.table';
 const TEXT_VIEW_TYPE = 'tableViewer.tableText';
-const STATE_MESSAGES = new Set(['meta', 'view', 'rows']);
+const STATE_MESSAGES = new Set(['meta', 'view', 'rows', 'cell']);
+// Delimiter and header choice per CSV/TSV file, kept in workspace state (newest 200 files).
+const CSV_OPTIONS_KEY = 'tableViewer.csvOptions';
+const CSV_OPTIONS_MAX = 200;
 const panels = new Set();
 let activePanel = null;
 // License state. Checked offline against the public key in config; loaded from SecretStorage on activate.
@@ -96,6 +99,9 @@ class TableEditorProvider {
     const opts = effectiveLimits(settings(), ent, userSetKeys());
     delete opts.capped;
     const format = formatFromPath(uri.path);
+    const isText = format === 'csv' || format === 'tsv';
+    const fileKey = uri.toString();
+    if (isText) Object.assign(opts, savedCsvOptions(ctx, fileKey));
     let exportTarget = null;
     let worker = null;
     let disposed = false;
@@ -232,6 +238,12 @@ class TableEditorProvider {
         return;
       }
       if (msg.type === 'export') { startExport(msg.format); return; }
+      if (msg.type === 'copyText') {
+        Promise.resolve(vscode.env.clipboard.writeText(msg.text))
+          .then(() => toWebview({ type: 'copiedText', chars: msg.text.length }), () => {});
+        return;
+      }
+      if (msg.type === 'csvOptions' && isText) saveCsvOptions(ctx, fileKey, msg);
       if (!worker) return;
       if (msg.type === 'copy') msg.maxRows = settings().maxCopyRows;
       worker.postMessage(msg);
@@ -251,6 +263,28 @@ class TableEditorProvider {
       failHost(e.message || String(e));
     }
   }
+}
+
+/** The delimiter and header choice saved for one file, as reader options ({} when none). */
+function savedCsvOptions(context, key) {
+  const all = (context.workspaceState && context.workspaceState.get(CSV_OPTIONS_KEY)) || {};
+  const o = all[key];
+  if (!o || typeof o !== 'object') return {};
+  const out = {};
+  if (typeof o.delimiter === 'string') out.delimiter = o.delimiter;
+  if (typeof o.header === 'boolean') out.header = o.header;
+  return out;
+}
+
+/** Remember the choice. Back to auto with a header row removes the entry. */
+function saveCsvOptions(context, key, msg) {
+  if (!context.workspaceState) return;
+  const all = { ...(context.workspaceState.get(CSV_OPTIONS_KEY) || {}) };
+  delete all[key];
+  if (msg.delimiter !== 'auto' || msg.header === false) all[key] = { delimiter: msg.delimiter, header: msg.header };
+  const keys = Object.keys(all);
+  for (let i = 0; i < keys.length - CSV_OPTIONS_MAX; i++) delete all[keys[i]];
+  context.workspaceState.update(CSV_OPTIONS_KEY, all);
 }
 
 async function loadStoredLicense(context) {
@@ -330,4 +364,5 @@ function activate(context) {
 
 function deactivate() {}
 
-module.exports = { activate, deactivate, TableEditorProvider };
+module.exports = {
+  savedCsvOptions, saveCsvOptions, activate, deactivate, TableEditorProvider };

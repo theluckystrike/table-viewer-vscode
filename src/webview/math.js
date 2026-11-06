@@ -52,6 +52,65 @@ function autoWidth(name, type, samples) {
   return Math.max(64, Math.min(360, Math.round(Math.max(headerPx, max * 7.4 + 22))));
 }
 
+/** Width that fits the header and the longest sample, for a double-click on the column edge. */
+function fitWidth(name, type, samples, maxPx = 900) {
+  const headerPx = String(name).length * 7.6 + String(type || '').length * 6.2 + 48;
+  let max = 0;
+  for (const s of samples) {
+    if (!s) continue;
+    // Only the first line counts: cells show one line.
+    const nl = s.indexOf('\n');
+    const len = nl === -1 ? s.length : nl;
+    if (len > max) max = len;
+  }
+  return Math.max(64, Math.min(maxPx, Math.round(Math.max(headerPx, max * 7.4 + 22))));
+}
+
+const DELIMITER_NAMES = { ',': 'comma', '\t': 'tab', ';': 'semicolon', '|': 'pipe', ':': 'colon' };
+
+/** Plain name of a delimiter character. */
+function delimiterName(d) { return DELIMITER_NAMES[d] || (d ? `"${d}"` : 'comma'); }
+
+/** Choices for the delimiter picker. info: the file info from the worker (delimiter, delimiterAuto). */
+function delimiterChoices(info) {
+  const i = info || {};
+  const auto = i.delimiterAuto !== false;
+  const detected = auto && i.delimiter ? ` (${delimiterName(i.delimiter)})` : '';
+  const list = [{ value: 'auto', label: 'Auto' + detected }];
+  for (const d of Object.keys(DELIMITER_NAMES)) {
+    const n = DELIMITER_NAMES[d];
+    list.push({ value: d, label: n[0].toUpperCase() + n.slice(1) });
+  }
+  return { choices: list, selected: auto ? 'auto' : (DELIMITER_NAMES[i.delimiter] ? i.delimiter : 'auto') };
+}
+
+const JSON_TYPES = new Set(['json', 'struct', 'list', 'map']);
+
+/**
+ * Text for the cell panel. A value that is JSON (an object or array, or a JSON-typed column)
+ * is shown indented when pretty is true. Returns {text, json} where json says it parsed.
+ */
+function cellText(value, type, pretty = true) {
+  if (value === null || value === undefined) return { text: '', json: false };
+  const s = String(value);
+  const t = s.trim();
+  const looks = JSON_TYPES.has(type) || ((t[0] === '{' && t[t.length - 1] === '}') || (t[0] === '[' && t[t.length - 1] === ']'));
+  if (!looks || t.length > 2000000) return { text: s, json: false };
+  let parsed;
+  try { parsed = JSON.parse(t); } catch { return { text: s, json: false }; }
+  if (parsed === null || typeof parsed !== 'object') return { text: s, json: false };
+  return { text: pretty ? JSON.stringify(parsed, null, 2) : s, json: true };
+}
+
+/** One line that says where the cell is: "Row 12 · fare (float) · 1,234 characters". */
+function cellCaption(rowNumber, col, length, truncated) {
+  const parts = [`Row ${Number(rowNumber).toLocaleString('en-US')}`];
+  if (col) parts.push(`${col.name} (${col.type})`);
+  parts.push(length === 1 ? '1 character' : `${Number(length).toLocaleString('en-US')} characters`);
+  if (truncated) parts.push('cut at 1,000,000');
+  return parts.join(' · ');
+}
+
 /** Width of the row-number column for a given row count. */
 function gutterWidth(rowCount) {
   return Math.max(48, Math.round(Number(rowCount).toLocaleString('en-US').length * 7.6 + 22));
@@ -146,4 +205,4 @@ function columnLefts(widths) {
   return left;
 }
 
-module.exports = { visibleColumns, columnLefts, statsRows, gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };
+module.exports = { fitWidth, delimiterName, delimiterChoices, cellText, cellCaption, visibleColumns, columnLefts, statsRows, gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };

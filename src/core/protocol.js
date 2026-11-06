@@ -1,8 +1,9 @@
 'use strict';
 // Message protocol shared by the webview, the extension host and the worker.
-// Webview -> host: ready, getRows, sort, filter, copy, sheet, openSettings, openProPage, stats, export
-// Host -> worker: open, getRows, sort, filter, copy, sheet, resync, entitlement, stats, export
-// Worker -> host -> webview: meta, rows, view, copyResult, stats, exportResult, error
+// Webview -> host: ready, getRows, sort, filter, copy, sheet, openSettings, openProPage, stats, export,
+//   csvOptions (delimiter and header row for CSV/TSV), getCell (full text of one cell), copyText
+// Host -> worker: open, getRows, sort, filter, copy, sheet, resync, entitlement, stats, export, csvOptions, getCell
+// Worker -> host -> webview: meta, rows, view, copyResult, stats, exportResult, cell, error
 // Host -> webview: init, pro (Pro switch and license state), copied, exported
 // Pro features (filter.query, stats, export) run only when the worker was told pro: true.
 // The webview is destroyed when its tab is hidden (retainContextWhenHidden: false) and sends 'ready'
@@ -14,6 +15,9 @@ const MAX_FILTER_LEN = 500;
 const COPY_FORMATS = new Set(['csv', 'tsv', 'json']);
 const EXPORT_FORMATS = new Set(['csv', 'tsv', 'json', 'jsonl']);
 const MAX_QUERY_LEN = 2000;
+// 'auto' detects the delimiter. The others match readers.CSV_DELIMITERS.
+const CSV_DELIMITER_CHOICES = new Set(['auto', ',', '\t', ';', '|', ':']);
+const MAX_COPY_TEXT = 1000000;
 
 function int(v, lo, hi, dflt) {
   const n = Number(v);
@@ -71,6 +75,18 @@ function validateWebviewMessage(msg) {
     }
     case 'sheet':
       return typeof msg.name === 'string' ? { type: 'sheet', name: msg.name.slice(0, 300) } : null;
+    case 'csvOptions':
+      if (!CSV_DELIMITER_CHOICES.has(msg.delimiter) || typeof msg.header !== 'boolean') return null;
+      return { type: 'csvOptions', delimiter: msg.delimiter, header: msg.header };
+    case 'getCell':
+      return {
+        type: 'getCell',
+        reqId: int(msg.reqId, 0, Number.MAX_SAFE_INTEGER, 0),
+        row: int(msg.row, 0, Number.MAX_SAFE_INTEGER, 0),
+        col: int(msg.col, 0, 1e6, 0),
+      };
+    case 'copyText':
+      return typeof msg.text === 'string' ? { type: 'copyText', text: msg.text.slice(0, MAX_COPY_TEXT) } : null;
     default:
       return null;
   }
@@ -94,6 +110,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   let loadMs = null; // time of the full load, resent on resync
   let lastError = null; // non-transient error, resent on resync
   let pro = false; // Pro features allowed (set by the host from the license check)
+  let lastOpen = null; // the 'open' message, reused when the CSV options change
   const proOnly = what => post({ type: 'error', message: `${what} is a Table Viewer Pro feature.`, code: 'PRO', transient: true });
 
   const sendMeta = (extra = {}) => {
@@ -116,6 +133,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   }
 
   async function open(msg) {
+    lastOpen = msg;
     loading = true;
     started = now();
     const options = msg.options || {};
@@ -214,6 +232,19 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
       }
       case 'export':
         return exportView(msg);
+      case 'csvOptions': {
+        if (!lastOpen || (lastOpen.format !== 'csv' && lastOpen.format !== 'tsv')) {
+          return post({ type: 'error', message: 'Delimiter and header options are for CSV and TSV files.', transient: true });
+        }
+        if (loading) return post({ type: 'error', message: 'Still loading. Change the delimiter when all rows are in.', code: 'BUSY', transient: true });
+        const options = { ...(lastOpen.options || {}), delimiter: msg.delimiter, header: msg.header };
+        return open({ ...lastOpen, options });
+      }
+      case 'getCell': {
+        const cell = table ? table.getCell(msg.row, msg.col) : null;
+        if (!cell) return post({ type: 'cell', reqId: msg.reqId, version, row: msg.row, col: msg.col, missing: true });
+        return post({ type: 'cell', reqId: msg.reqId, version, row: msg.row, col: msg.col, ...cell });
+      }
       case 'resync':
         sendMeta(loading || loadMs === null ? { resync: true } : { resync: true, loadMs });
         if (lastError) post(lastError);
@@ -247,4 +278,4 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   return { handle, fail, get table() { return table; }, get version() { return version; }, get pro() { return pro; } };
 }
 
-module.exports = { validateWebviewMessage, createSession, columnsMeta, MAX_PAGE, EXPORT_FORMATS };
+module.exports = { validateWebviewMessage, createSession, columnsMeta, MAX_PAGE, EXPORT_FORMATS, CSV_DELIMITER_CHOICES };

@@ -11,7 +11,7 @@ For anyone who opens data files in VS Code, Table Viewer shows Parquet, Excel an
 
 - Opens fast. Rows are read in a background thread and only the rows and columns on screen are drawn, so VS Code doesn't freeze, even on a file with 5,000 columns. A big CSV shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early. Excel files load whole.
 - No Python, no kernel, no account. It's plain JavaScript that runs offline and sends nothing anywhere.
-- Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, and sort, filter and copy-as-CSV/JSON.
+- Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, sort, filter and copy-as-CSV/JSON, and the full text of any cell with its JSON indented.
 
 ## Quick start
 
@@ -32,6 +32,10 @@ Type in the box under a header to filter that column. Number columns take `>10`,
 
 Drag or Shift+click to select cells. Click row numbers to select whole rows, or the `#` corner (or Ctrl+A) to select everything. "Copy CSV" copies the selection with a header row, and "Copy JSON" copies an array of objects that keeps numbers, booleans and nested values as JSON. Ctrl+C (Cmd+C on macOS) copies plain tab-separated values, which paste straight into Excel or Google Sheets as cells. With nothing selected, the copy buttons take the whole filtered view.
 
+Double-click a cell, or press Enter, to open the cell panel under the table. It shows the whole value, wrapped, even past the 2,000 characters a grid cell shows. JSON objects and arrays are indented, and "Raw" shows the text as it is in the file. The panel follows the arrow keys, "Copy value" copies what it shows, and Esc closes it.
+
+Double-click the edge of a column header to fit the column to the rows loaded so far.
+
 The Schema button shows each column's type. For Parquet it also shows the full schema tree with physical and logical types, plus repetition, row groups, compression, the writer and the key-value metadata.
 
 
@@ -43,7 +47,7 @@ The Schema button shows each column's type. For Parquet it also shows the full s
 | Excel and OpenDocument | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods` | yes | SheetJS Community Edition 0.20.3 (Apache-2.0) |
 | CSV and TSV | `.csv`, `.tsv`, `.tab`, `.psv` | no, use "Open in Table Viewer" | built-in streaming parser |
 
-CSV files keep opening in the text editor by default, since people edit them as text. The delimiter (comma, tab, semicolon or pipe) is detected from the first lines, and UTF-8 and UTF-16 files with a byte order mark both work. Excel workbooks with several sheets get a sheet picker.
+CSV files keep opening in the text editor by default, since people edit them as text. The delimiter (comma, tab, semicolon or pipe) is detected from the first lines. When the guess is wrong, for example in a semicolon file whose text has commas in it, pick comma, tab, semicolon, pipe or colon in the toolbar's Delimiter list. Untick "Header row" for a file that has none, and the columns are named column_1, column_2 and so on. Both choices are kept for each file in the workspace. UTF-8 and UTF-16 files with a byte order mark both work. Excel workbooks with several sheets get a sheet picker.
 
 Column types come from the Parquet schema, from Excel cell types, or for CSV from the values themselves (int, float, bool, date, timestamp or string). Integers too large to hold exactly stay as text, so no digits are lost.
 

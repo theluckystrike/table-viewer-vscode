@@ -4,7 +4,7 @@
 html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
 body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size, 13px); color: var(--vscode-foreground); background: var(--vscode-editor-background); }
 #app { display: flex; flex-direction: column; height: 100vh; }
-.toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 10px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; }
 .title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 30vw; }
 .fmt { font-size: 10px; letter-spacing: .5px; padding: 1px 6px; border-radius: 3px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
 .stats { opacity: .85; white-space: nowrap; }
@@ -60,6 +60,16 @@ body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size
 .finput { width: 100%; height: 19px; padding: 0 4px; font-size: 11px; }
 .status { display: flex; gap: 16px; padding: 3px 10px; font-size: 12px; border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; opacity: .9; }
 .status .mid { flex: 1; text-align: center; }
+/* CSV options and the cell panel */
+.csvopts { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+.csvopt { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; }
+.csvopt input { margin: 0; }
+.cellpanel { flex: none; display: flex; flex-direction: column; max-height: 38vh; min-height: 64px; border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35)); }
+.cellhead { display: flex; align-items: center; gap: 8px; padding: 4px 10px; flex: none; flex-wrap: wrap; }
+.cellhead .btn { flex: none; }
+.cellcap { opacity: .85; font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cellvalue { flex: 1; margin: 0; padding: 6px 10px 8px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family); font-size: 12px; user-select: text; outline: none; }
+.cellvalue.null::after { content: 'null'; opacity: .4; font-style: italic; }
 /* Pro (shown only when the Pro switch is on) */
 .pro-badge { font: inherit; font-size: 10px; letter-spacing: .5px; padding: 1px 7px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.4)); }
 .pro-badge:hover { color: var(--vscode-textLink-foreground); border-color: var(--vscode-textLink-foreground); }

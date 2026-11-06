@@ -6,6 +6,7 @@ const FLOAT_RE = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
 const BOOL_RE = /^(true|false|TRUE|FALSE|True|False)$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 const MAX_CELL_CHARS = 2000;
+const MAX_FULL_CELL_CHARS = 1000000; // cell panel: one value, sent on request
 
 const TIME_PART_RE = /^\d{4}-\d{2}-\d{2}[T ]/;
 
@@ -243,6 +244,17 @@ class Table {
       out.push({ id, cells: row });
     }
     return out;
+  }
+
+  /** Full text of one cell of the view, cut at maxChars. Returns null for an unknown cell. */
+  getCell(viewRow, col, maxChars = MAX_FULL_CELL_CHARS) {
+    if (!Number.isInteger(viewRow) || viewRow < 0 || viewRow >= this.viewCount) return null;
+    if (!Number.isInteger(col) || col < 0 || col >= this.columns.length) return null;
+    const id = this.rowId(viewRow);
+    const s = formatValue(this.get(id, col), this.columns[col].type);
+    if (s === null) return { id, value: null, length: 0, truncated: false };
+    const truncated = s.length > maxChars;
+    return { id, value: truncated ? s.slice(0, maxChars) : s, length: s.length, truncated };
   }
 
   setSort(col, dir) {

@@ -12,6 +12,10 @@ const MB = 1024 * 1024;
 const { formatFromPath } = require('./formats');
 
 const DEFAULTS = { maxRows: 1000000, maxFileSizeMB: 512, maxExcelSizeMB: 50 };
+// Delimiters the user can pick in the toolbar. 'auto' (or anything else) means: detect.
+const CSV_DELIMITERS = [',', '\t', ';', '|', ':'];
+/** Name of a headerless column: column_1, column_2, ... */
+function genericName(i) { return `column_${i + 1}`; }
 
 function opts(o) {
   const out = { ...DEFAULTS, ...(o || {}) };
@@ -65,26 +69,33 @@ async function loadCsv(source, options, onPreview, format) {
   let cols = [];
   let rows = 0;
   let decoder = null;
-  let delimiter = format === 'tsv' ? '\t' : null;
+  const forced = CSV_DELIMITERS.includes(o.delimiter) ? o.delimiter : null;
+  const hasHeader = o.header !== false;
+  let delimiter = forced || (format === 'tsv' ? '\t' : null);
   let parser = null;
   let pending = '';
   let previewSent = false;
   let rowsTruncated = false;
 
-  const info = { format, fileSize: size, delimiter: null, truncated: false, truncatedReason: '', totalRows: null };
+  const info = { format, fileSize: size, delimiter: null, delimiterAuto: !forced, header: hasHeader, truncated: false, truncatedReason: '', totalRows: null };
 
   const onRow = (fields) => {
     if (header === null) {
-      header = fields.slice();
+      if (hasHeader) {
+        header = fields.slice();
+        cols = header.map(() => []);
+        return;
+      }
+      // No header row: name the columns column_1.. and keep the first line as data.
+      header = fields.map((_, i) => genericName(i));
       cols = header.map(() => []);
-      return;
     }
     if (fields.length === 1 && fields[0] === '' && header.length > 1) return; // blank line
     if (rows >= o.maxRows) { rowsTruncated = true; parser.stop(); return; }
     while (fields.length > cols.length) {
       const extra = new Array(rows).fill('');
       cols.push(extra);
-      header.push('');
+      header.push(hasHeader ? '' : genericName(header.length));
     }
     for (let c = 0; c < cols.length; c++) cols[c].push(c < fields.length ? fields[c] : '');
     rows++;
@@ -440,5 +451,5 @@ async function loadFile(source, format, options, onPreview) {
 module.exports = {
   snapExcelDate,
   loadFile, loadCsv, loadParquet, loadExcel, sheetTable, formatFromPath, parquetType, schemaRows,
-  inferJsType, DEFAULTS, PREVIEW_ROWS,
+  inferJsType, DEFAULTS, PREVIEW_ROWS, CSV_DELIMITERS,
 };

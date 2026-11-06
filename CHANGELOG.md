@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 (2026-11-06)
+
+- Pick the delimiter for a CSV or TSV file in the toolbar. The choices are Auto, comma, tab, semicolon, pipe and colon. Auto shows what it found, for example "Auto (comma)". This fixes files where the guess was wrong, such as a semicolon file whose text has commas in it. The file is read again with the new choice.
+- A "Header row" box for CSV and TSV. Untick it for a file without a header, and the first line stays a row of data, with columns named column_1, column_2 and so on.
+- Both choices are kept for each file in the workspace and used the next time it opens. Going back to Auto with a header row forgets them.
+- Double-click a cell, or press Enter, to see its full value in a panel under the table. Long text wraps and is shown in full (the grid cuts cells at 2,000 characters), JSON objects and arrays are indented, and "Raw" shows the stored text. The panel follows the arrow keys. "Copy value" copies it, and Esc closes the panel.
+- Double-click the edge of a column header to fit that column to the rows loaded so far, up to 900 px.
+- The toolbar wraps onto a second line in a narrow editor instead of squeezing its buttons.
+- All of this is free. Nothing is sent anywhere.
+
 ## 0.1.5 (2026-11-06)
 
 - The Marketplace page now starts with a screenshot of a real VS Code window with a 1,000,000 row Parquet file, sorted and filtered, and a short GIF of the same steps. Both were made from generated sample files. The images load from the GitHub repo and are not packed into the extension, so the download size stays the same.

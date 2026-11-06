@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 (2026-11-06)
+
+- Listing only, no change to the extension. The display name is now "CSV Viewer, Excel Viewer & Parquet Viewer" and the description is one sentence, so the listing uses the words people search for (csv viewer (18), excel viewer (15), parquet viewer (16), parquet (28)).
+- The 30 keywords start with the most searched terms.
+- The README ends with links to the other Zovo extensions.
+
 ## 0.1.1 (2026-11-06)
 
 - Wide files scroll fast. Only the columns in view get cells, so a 5,000 column Parquet file went from about 540 ms to about 30 ms per scroll frame.

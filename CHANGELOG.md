@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 (2026-11-07)
+
+- The "More free viewers" list and the README list now show the 15 Zovo extensions on the Marketplace under their current names, and 12 that are coming soon.
+- Extensions for related files now come first, starting with Large JSON Viewer & JSON Tree and DOCX Viewer & Word Viewer with Dark Mode.
+
 ## 0.2.0 (2026-11-06)
 
 - Pick the delimiter for a CSV or TSV file in the toolbar. The choices are Auto, comma, tab, semicolon, pipe and colon. Auto shows what it found, for example "Auto (comma)". This fixes files where the guess was wrong, such as a semicolon file whose text has commas in it. The file is read again with the new choice.

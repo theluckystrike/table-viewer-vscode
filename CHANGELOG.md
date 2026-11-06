@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 (2026-11-06)
+
+- The Marketplace page now starts with a screenshot of a real VS Code window with a 1,000,000 row Parquet file, sorted and filtered, and a short GIF of the same steps. Both were made from generated sample files. The images load from the GitHub repo and are not packed into the extension, so the download size stays the same.
+
 ## 0.1.4 (2026-11-06)
 
 - The status bar under the table ends with a small line with two links, "Sponsor" (GitHub Sponsors) and "More free viewers". The new setting `tableViewer.showSupportLinks` (default `true`) hides it, and so does the "Hide" link next to them. There is no popup, and nothing is sent anywhere.

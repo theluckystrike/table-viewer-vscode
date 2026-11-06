@@ -3,17 +3,11 @@
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs" alt="VS Code installs"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/v/zovo.table-viewer-vscode?label=version" alt="Version"></a>
 
-Click a Parquet, Excel or CSV file and it opens as a sortable, filterable table in about a second, even at 1,000,000 rows, with no Python and no setup.
+For anyone who opens data files in VS Code, Table Viewer shows Parquet, Excel and CSV files as a sortable, filterable table, even at 1,000,000 rows, with no Python and no setup.
 
-| Parquet, dark theme | Excel, light theme |
-|---|---|
-| <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png" alt="A 1,000,000 row Parquet file sorted by fare_usd, with a 5 by 4 cell selection and the type of each column in its header" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png" alt="An Excel workbook with three sheets, sorted by magnitude, with the sheet picker and timestamp, float and string columns" width="100%"></a> |
+![A 1,000,000 row Parquet file in VS Code, sorted by fare_usd from high to low and filtered to zones that contain Airport, with 99,481 of 1,000,000 rows matching](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-parquet.png)
 
-| Parquet schema, dark theme | CSV with filters, light theme |
-|---|---|
-| <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/schema.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/schema.png" alt="The Schema panel for the Parquet file, with 8 row groups, ZSTD compression, and physical and logical types for each field" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/csv-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/csv-light.png" alt="A 2,226 row CSV filtered to mag &gt;=4.5 and the word Japan, sorted by depth, with 4 rows copied as JSON" width="100%"></a> |
-
-*Real output, light and dark. The Excel and CSV files hold the real USGS earthquake catalog for October 2026 (2,226 events of magnitude 2.5 or more). The Parquet file is a generated 1,000,000 row taxi-trip table (11.7 MB, zstd). Each shot is the extension's own webview page, with its Content Security Policy, fed by the extension's real reader and message protocol and captured in headless Chrome. The Parquet file loaded in 0.8 s on an M-series Mac.*
+*A real VS Code 1.142 window running this extension on a generated 1,000,000 row taxi-trip Parquet file (12 MB, zstd, made by [`scripts/screenshot/make_trips.py`](https://github.com/theluckystrike/table-viewer-vscode/blob/main/scripts/screenshot/make_trips.py)). It loaded in 0.8 s on an M-series Mac.*
 
 - Opens fast. Rows are read in a background thread and only the rows and columns on screen are drawn, so VS Code doesn't freeze, even on a file with 5,000 columns. A big CSV shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early. Excel files load whole.
 - No Python, no kernel, no account. It's plain JavaScript that runs offline and sends nothing anywhere.
@@ -23,6 +17,10 @@ Click a Parquet, Excel or CSV file and it opens as a sortable, filterable table 
 
 1. Install Table Viewer and click any `.parquet`, `.xlsx`, `.xls` or `.ods` file. It opens as a table.
 2. For a `.csv` or `.tsv` file, click the table icon at the top right of the editor (or right-click the file and pick "Open in Table Viewer").
+
+![A click on the Parquet file opens 1,000,000 rows. A click on the fare_usd header sorts it, Airport in the zone filter keeps the airport trips, and <60 in the fare filter drops the top fares](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/demo-table.gif)
+
+*Recorded in the same window. The white arrow is drawn in to show where each click lands.*
 
 Run "Table Viewer: Get Started" from the Command Palette for a short tour.
 
@@ -74,6 +72,18 @@ Everything above is free and stays free.
 A planned Pro tier adds an SQL query over the file and export to Parquet.
 
 Neither is built yet and nothing is locked today.
+
+## More screenshots
+
+| Parquet, dark theme | Excel, light theme |
+|---|---|
+| <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png" alt="A 1,000,000 row Parquet file sorted by fare_usd, with a 5 by 4 cell selection and the type of each column in its header" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png" alt="An Excel workbook with three sheets, sorted by magnitude, with the sheet picker and timestamp, float and string columns" width="100%"></a> |
+
+| Parquet schema, dark theme | CSV with filters, light theme |
+|---|---|
+| <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/schema.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/schema.png" alt="The Schema panel for the Parquet file, with 8 row groups, ZSTD compression, and physical and logical types for each field" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/csv-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/csv-light.png" alt="A 2,226 row CSV filtered to mag &gt;=4.5 and the word Japan, sorted by depth, with 4 rows copied as JSON" width="100%"></a> |
+
+*Real output, light and dark. The Excel and CSV files hold the real USGS earthquake catalog for October 2026 (2,226 events of magnitude 2.5 or more). The Parquet file is a generated 1,000,000 row taxi-trip table (11.7 MB, zstd). Each shot is the extension's own webview page, with its Content Security Policy, fed by the extension's real reader and message protocol and captured in headless Chrome. The Parquet file loaded in 0.8 s on an M-series Mac.*
 
 ## Privacy
 

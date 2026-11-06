@@ -1,0 +1,11 @@
+src/**
+test/**
+scripts/**
+node_modules/**
+walkthrough/*.tmp
+**/*.map
+icon.svg
+.gitignore
+dist/*.vsix
+*.vsix
+NOTES.md

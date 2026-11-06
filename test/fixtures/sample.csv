@@ -1,0 +1,6 @@
+id,name,price,active,joined
+1,Alice,10.5,true,2024-01-02
+2,"Bob, Jr.",7,false,2024-02-03
+3,"Say ""hi""",,TRUE,2024-03-04
+4,"multi
+line",12.25,false,

@@ -1,0 +1,214 @@
+{
+  "name": "table-viewer-vscode",
+  "displayName": "Table Viewer for Parquet, Excel and CSV",
+  "description": "Open Parquet, Excel (xlsx, xls, ods) and CSV/TSV files as a fast, sortable, filterable table with column types and the Parquet schema. Handles 1M rows. No Python, no setup, works offline.",
+  "version": "0.1.0",
+  "publisher": "zovo",
+  "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#0F2A2E",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "Data Science",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "parquet",
+    "parquet viewer",
+    "excel",
+    "xlsx",
+    "xls",
+    "xlsx viewer",
+    "excel viewer",
+    "csv",
+    "csv viewer",
+    "tsv",
+    "ods",
+    "spreadsheet",
+    "table",
+    "table viewer",
+    "data viewer",
+    "dataframe",
+    "data wrangler",
+    "pandas",
+    "arrow",
+    "duckdb",
+    "data science",
+    "data engineering",
+    "schema",
+    "sort",
+    "filter",
+    "grid",
+    "big data",
+    "large files",
+    "offline",
+    "preview"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "tableViewer.table",
+        "displayName": "Table Viewer",
+        "selector": [
+          { "filenamePattern": "*.parquet" },
+          { "filenamePattern": "*.pq" },
+          { "filenamePattern": "*.xlsx" },
+          { "filenamePattern": "*.xlsm" },
+          { "filenamePattern": "*.xlsb" },
+          { "filenamePattern": "*.xls" },
+          { "filenamePattern": "*.ods" }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "tableViewer.tableText",
+        "displayName": "Table Viewer",
+        "selector": [
+          { "filenamePattern": "*.csv" },
+          { "filenamePattern": "*.tsv" },
+          { "filenamePattern": "*.tab" },
+          { "filenamePattern": "*.psv" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "tableViewer.openInTableViewer",
+        "title": "Open in Table Viewer",
+        "category": "Table Viewer",
+        "icon": "$(table)"
+      },
+      {
+        "command": "tableViewer.copySelectionAsCsv",
+        "title": "Copy Selection as CSV",
+        "category": "Table Viewer"
+      },
+      {
+        "command": "tableViewer.copySelectionAsJson",
+        "title": "Copy Selection as JSON",
+        "category": "Table Viewer"
+      },
+      {
+        "command": "tableViewer.openWalkthrough",
+        "title": "Get Started",
+        "category": "Table Viewer"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "tableViewer.openInTableViewer",
+          "when": "resourceExtname =~ /^\\.(csv|tsv|tab|psv)$/ && activeEditor == workbench.editors.files.textFileEditor",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "tableViewer.openInTableViewer",
+          "when": "resourceExtname =~ /^\\.(csv|tsv|tab|psv|parquet|pq|xlsx|xlsm|xlsb|xls|ods)$/",
+          "group": "navigation@20"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "tableViewer.copySelectionAsCsv",
+          "when": "activeCustomEditorId =~ /^tableViewer\\./"
+        },
+        {
+          "command": "tableViewer.copySelectionAsJson",
+          "when": "activeCustomEditorId =~ /^tableViewer\\./"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Table Viewer",
+      "properties": {
+        "tableViewer.maxRows": {
+          "type": "number",
+          "default": 1000000,
+          "minimum": 1000,
+          "description": "Load at most this many rows per file. Rows past the limit are not read, and a banner says so."
+        },
+        "tableViewer.maxFileSizeMB": {
+          "type": "number",
+          "default": 512,
+          "minimum": 1,
+          "description": "CSV/TSV: read at most this many MB from the start of the file. Parquet files are read by row groups, so only maxRows applies."
+        },
+        "tableViewer.maxExcelSizeMB": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "description": "Excel/ODS files are read whole. Larger workbooks show a message instead of loading."
+        },
+        "tableViewer.maxCopyRows": {
+          "type": "number",
+          "default": 100000,
+          "minimum": 1,
+          "description": "Copy at most this many rows to the clipboard at once."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "tableViewer.start",
+        "title": "Get started with Table Viewer",
+        "description": "Open Parquet, Excel and CSV files as a table. No Python, no setup.",
+        "steps": [
+          {
+            "id": "open",
+            "title": "Open a data file",
+            "description": "Parquet, xlsx, xls and ods files open in Table Viewer when you click them. For CSV and TSV, click the table icon in the editor title or right-click the file and pick \"Open in Table Viewer\".\n[Find a data file](command:workbench.action.quickOpen?%5B%22.parquet%22%5D)",
+            "media": { "markdown": "walkthrough/open.md" },
+            "completionEvents": ["onCommand:workbench.action.quickOpen", "onCommand:tableViewer.openInTableViewer"]
+          },
+          {
+            "id": "explore",
+            "title": "Sort, filter and read the schema",
+            "description": "Click a header to sort. Type in the box under a header to filter (>100, 5..9, =exact, !not). The Schema button shows column types, and for Parquet the full schema, row groups and compression.",
+            "media": { "image": "images/screenshot.png", "altText": "A 1,000,000 row Parquet file open in Table Viewer, sorted by fare, with the type of each column in its header." }
+          },
+          {
+            "id": "copy",
+            "title": "Copy rows as CSV or JSON",
+            "description": "Drag or Shift+click to select cells, or click row numbers to select rows. Copy CSV and Copy JSON put the selection on the clipboard. Ctrl+C (Cmd+C) copies TSV for pasting into a spreadsheet.\n[Open settings](command:workbench.action.openSettings?%5B%22tableViewer%22%5D)",
+            "media": { "markdown": "walkthrough/copy.md" },
+            "completionEvents": ["onCommand:workbench.action.openSettings"]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.js --production",
+    "test": "node scripts/build.js --production && node --test \"test/*.test.js\"",
+    "fixtures": "python3 scripts/make-fixtures.py test/fixtures && node scripts/make-fixtures.js test/fixtures",
+    "package": "npm run build && npx -y @vscode/vsce package --no-dependencies -o dist/"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "hyparquet": "1.32.0",
+    "hyparquet-compressors": "1.1.3",
+    "hyparquet-writer": "0.18.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "homepage": "https://github.com/theluckystrike/table-viewer-vscode#readme",
+  "bugs": { "url": "https://github.com/theluckystrike/table-viewer-vscode/issues" },
+  "repository": { "type": "git", "url": "https://github.com/theluckystrike/table-viewer-vscode" }
+}

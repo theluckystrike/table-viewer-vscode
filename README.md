@@ -1,0 +1,87 @@
+# Table Viewer for Parquet, Excel and CSV
+
+[![VS Code Marketplace installs](https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs)](https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode)
+[![Open VSX version](https://img.shields.io/open-vsx/v/zovo/table-viewer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/zovo/table-viewer-vscode)
+
+Click a Parquet, Excel or CSV file and it opens as a sortable, filterable table in about a second, even at 1,000,000 rows, with no Python and no setup.
+
+![A 1,000,000 row Parquet file in Table Viewer, sorted by fare_usd, with a 5 by 4 cell selection and the type of each column in its header](https://github.com/theluckystrike/table-viewer-vscode/raw/HEAD/images/screenshot.png)
+
+*Real output. The file is a generated 1,000,000 row, 8 column taxi-trip Parquet file (11.7 MB, zstd). The extension's own webview script and stylesheet rendered it in headless Chrome with rows from the extension's Parquet reader, sorted by `fare_usd`. It loaded in 655 ms and sorted in 229 ms on an M-series Mac.*
+
+- Opens fast. Rows are read in a background thread and only the rows on screen are drawn, so VS Code never freezes. A big CSV shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early. Excel files load whole.
+- No Python, no kernel, no account. It's plain JavaScript that runs offline and sends nothing anywhere.
+- Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, and sort, filter and copy-as-CSV/JSON.
+
+## Quick start
+
+1. Install Table Viewer and click any `.parquet`, `.xlsx`, `.xls` or `.ods` file. It opens as a table.
+2. For a `.csv` or `.tsv` file, click the table icon at the top right of the editor (or right-click the file and pick "Open in Table Viewer").
+
+Run "Table Viewer: Get Started" from the Command Palette for a short tour.
+
+## What you can do
+
+Click a column header to sort it. Clicks cycle through ascending, descending and the file's own order. Nulls always go last.
+
+Type in the box under a header to filter that column. Number columns take `>10`, `>=10`, `<5`, `=3`, `!=3` and ranges like `5..9`. Text columns match any part of the text, `=word` matches exactly and `!word` drops rows that contain it. `empty` and `!empty` work everywhere. The search box at the top looks in every column at once.
+
+Drag or Shift+click to select cells. Click row numbers to select whole rows, or the `#` corner (or Ctrl+A) to select everything. "Copy CSV" copies the selection with a header row, and "Copy JSON" copies an array of objects that keeps numbers, booleans and nested values as JSON. Ctrl+C (Cmd+C on macOS) copies plain tab-separated values, which paste straight into Excel or Google Sheets as cells. With nothing selected, the copy buttons take the whole filtered view.
+
+The Schema button shows each column's type. For Parquet it also shows the full schema tree with physical and logical types, plus repetition, row groups, compression, the writer and the key-value metadata.
+
+![The Schema panel for the same Parquet file, with 8 row groups, ZSTD compression, physical and logical types for each field](https://github.com/theluckystrike/table-viewer-vscode/raw/HEAD/images/schema.png)
+
+## Supported files
+
+| Format | Extensions | Opens by default | Reader |
+|---|---|---|---|
+| Parquet | `.parquet`, `.pq` | yes | hyparquet (MIT), with snappy, gzip, zstd, brotli and lz4 |
+| Excel and OpenDocument | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods` | yes | SheetJS Community Edition 0.20.3 (Apache-2.0) |
+| CSV and TSV | `.csv`, `.tsv`, `.tab`, `.psv` | no, use "Open in Table Viewer" | built-in streaming parser |
+
+CSV files keep opening in the text editor by default, since people edit them as text. The delimiter (comma, tab, semicolon or pipe) is detected from the first lines, and UTF-8 and UTF-16 files with a byte order mark both work. Excel workbooks with several sheets get a sheet picker.
+
+Column types come from the Parquet schema, from Excel cell types, or for CSV from the values themselves (int, float, bool, date or string). Integers too large to hold exactly stay as text, so no digits are lost.
+
+## Limits and settings
+
+| Setting | Default | What it does |
+|---|---|---|
+| `tableViewer.maxRows` | 1,000,000 | Rows to load per file. A banner says when a file has more. |
+| `tableViewer.maxFileSizeMB` | 512 | How much of a CSV/TSV file to read. Parquet is read by row group, so only `maxRows` applies. |
+| `tableViewer.maxExcelSizeMB` | 50 | Excel files have to be read whole. Bigger workbooks show a message instead of loading. |
+| `tableViewer.maxCopyRows` | 100,000 | Most rows copied to the clipboard at once. |
+
+On our test machine (Apple Silicon, Node 22), the test suite loads a 1,000,000 row CSV (about 30 MB) in 0.5 s and a 1,000,000 row Parquet file in 0.15 s. It sorts either one by a number column in about 0.2 s and filters in under 0.1 s. Your numbers will differ with the column count and the file.
+
+Table Viewer is read-only. It doesn't edit or save files.
+
+## Compared with Data Wrangler
+
+Microsoft Data Wrangler is a full data-cleaning tool. It needs a Python environment with pandas and runs a kernel. Table Viewer does less. It shows the file, sorts, filters and copies, and it opens before a kernel would have started. Use Data Wrangler when you need to transform data in Python, and Table Viewer when you just want to look.
+
+## Free and Pro
+
+Everything above is free and stays free.
+
+Planned Pro: SQL query over the file, export to Parquet.
+
+Neither is built yet and nothing is locked today.
+
+## Privacy
+
+Table Viewer makes no network requests and collects no telemetry. Files are read on your machine in a worker thread. The table webview runs under a strict Content Security Policy with no remote scripts, and every value from the file is written as plain text, never as HTML.
+
+## Development
+
+```sh
+npm install
+npm test          # builds with esbuild, then runs node --test
+npm run package   # writes dist/table-viewer-vscode-<version>.vsix
+npm run fixtures  # rebuilds test/fixtures (needs python3 with pyarrow)
+```
+
+## License
+
+MIT. Bundled third-party licenses are in [THIRD-PARTY-NOTICES.txt](https://github.com/theluckystrike/table-viewer-vscode/blob/HEAD/THIRD-PARTY-NOTICES.txt).

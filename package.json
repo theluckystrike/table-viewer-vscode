@@ -2,7 +2,7 @@
   "name": "table-viewer-vscode",
   "displayName": "CSV Viewer, Excel Viewer & Parquet Viewer",
   "description": "CSV viewer, Excel viewer and Parquet viewer that opens .csv, .tsv, .xlsx, .xls and .parquet files as a fast sortable, filterable table, handles 1M rows and needs no Python.",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -180,6 +180,11 @@
           "default": 100000,
           "minimum": 1,
           "description": "Copy at most this many rows to the clipboard at once."
+        },
+        "tableViewer.askForRating": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask one time for a Marketplace rating after you have used Table Viewer for a few days. You can answer \"Later\" or \"Don't ask again\". Nothing is sent anywhere."
         }
       }
     },

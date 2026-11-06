@@ -57,6 +57,7 @@ Column types come from the Parquet schema, from Excel cell types, or for CSV fro
 | `tableViewer.maxFileSizeMB` | 512 | How much of a CSV/TSV file to read. Parquet is read by row group, so only `maxRows` applies. |
 | `tableViewer.maxExcelSizeMB` | 50 | Excel files have to be read whole. Bigger workbooks show a message instead of loading. |
 | `tableViewer.maxCopyRows` | 100,000 | Most rows copied to the clipboard at once. |
+| `tableViewer.askForRating` | true | Ask one time for a Marketplace rating, after 5 files and 2 days. Turn it off with `false` |
 
 On our test machine (Apple Silicon, Node 22), the test suite loads a 1,000,000 row CSV (about 30 MB) in 0.5 s and a 1,000,000 row Parquet file in 0.15 s. It sorts either one by a number column in about 0.2 s and filters in under 0.1 s. Your numbers will differ with the column count and the file.
 

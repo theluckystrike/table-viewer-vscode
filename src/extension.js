@@ -8,6 +8,9 @@ const { formatFromPath } = require('./core/formats');
 const config = require('./config');
 const { verifyLicense, normalizeKey } = require('./license');
 const { entitlement, effectiveLimits, isEnabled } = require('./pro');
+const { createRatingPrompt } = require('./rate');
+
+let rating = { success() {} };
 
 const VIEW_TYPE = 'tableViewer.table';
 const TEXT_VIEW_TYPE = 'tableViewer.tableText';
@@ -94,6 +97,7 @@ class TableEditorProvider {
     let worker = null;
     let disposed = false;
     let webviewReady = false;
+    let counted = false; // one success per opened tab, for the rating prompt
     let fatal = null; // host-side error (unsupported file, reader crash), resent to a reloaded webview
     const queue = [];
     // While the webview is gone (tab hidden) or not ready yet, keep only one-off notices. Table state
@@ -119,6 +123,7 @@ class TableEditorProvider {
         resourceLimits: { maxOldGenerationSizeMb: 4096 },
       });
       worker.on('message', msg => {
+        if (msg && msg.type === 'meta' && !counted) { counted = true; rating.success(); }
         if (msg && msg.type === 'copyResult') return onCopy(msg);
         if (msg && msg.type === 'exportResult') return onExport(msg);
         toWebview(msg);
@@ -288,6 +293,7 @@ async function removeLicenseKey(context) {
 }
 
 function activate(context) {
+  rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.table-viewer-vscode', section: 'tableViewer', message: (n) => `Table Viewer has opened ${n} files for you. A rating helps other people find it.` });
   const provider = new TableEditorProvider(context);
   vscode.commands.executeCommand('setContext', 'tableViewer.proEnabled', !!config.PRO_ENABLED);
   licenseLoaded = loadStoredLicense(context);

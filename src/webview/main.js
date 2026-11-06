@@ -34,6 +34,9 @@ const S = {
   schemaOpen: false,
   error: '',
   timing: '',
+  pro: { enabled: false },
+  statsOpen: false,
+  queryOpen: false,
 };
 
 function el(tag, cls, text) {
@@ -64,7 +67,31 @@ btnCsv.title = 'Copy the selection as CSV with a header row (no selection: the w
 const btnJson = el('button', 'btn', 'Copy JSON');
 btnJson.title = 'Copy the selection as a JSON array of objects (no selection: the whole view)';
 const spacer = el('span', 'spacer');
-toolbar.append(title, fmtBadge, stats, spacer, sheetSel, search, btnSchema, btnCsv, btnJson);
+// Pro controls. All hidden unless the host says Pro is switched on (config.PRO_ENABLED).
+const proBadge = el('button', 'pro-badge', 'Pro');
+proBadge.hidden = true;
+const btnQuery = el('button', 'btn', 'SQL');
+btnQuery.title = 'Filter rows with a SQL WHERE condition';
+const btnStats = el('button', 'btn', 'Stats');
+btnStats.title = 'Count, nulls, distinct, min, max, mean and top values for each column of the rows in view';
+const btnExport = el('button', 'btn', 'Export');
+btnExport.title = 'Save the rows in view (filtered and sorted) as CSV, TSV, JSON or JSON Lines';
+btnQuery.hidden = btnStats.hidden = btnExport.hidden = true;
+toolbar.append(title, fmtBadge, stats, spacer, sheetSel, search, btnQuery, btnSchema, btnStats, btnCsv, btnJson, btnExport, proBadge);
+
+const queryBar = el('div', 'querybar');
+queryBar.hidden = true;
+const queryLabel = el('span', 'qlabel', 'WHERE');
+const queryInput = el('input', 'qinput');
+queryInput.placeholder = "fare > 20 AND (city = 'Paris' OR city LIKE 'Lon%') AND tip IS NOT NULL";
+queryInput.setAttribute('aria-label', 'SQL WHERE condition');
+queryInput.spellcheck = false;
+const queryRun = el('button', 'btn', 'Apply');
+const queryClear = el('button', 'btn', 'Clear');
+const queryErr = el('span', 'qerr');
+queryBar.append(queryLabel, queryInput, queryRun, queryClear, queryErr);
+const statsPanel = el('div', 'statspanel');
+statsPanel.hidden = true;
 
 const banner = el('div', 'banner');
 banner.hidden = true;
@@ -88,7 +115,7 @@ const statusLeft = el('span', 'left');
 const statusMid = el('span', 'mid');
 const statusRight = el('span', 'right');
 status.append(statusLeft, statusMid, statusRight);
-app.append(toolbar, banner, schemaPanel, grid, status);
+app.append(toolbar, queryBar, banner, schemaPanel, statsPanel, grid, status);
 
 // ---------- header ----------
 function totalWidth() { return GUTTER_W + S.widths.reduce((a, b) => a + b, 0); }
@@ -184,11 +211,14 @@ function applyWidths() {
 
 // ---------- filters ----------
 let filterTimer = null;
+function filterMessage() {
+  const m = { type: 'filter', global: S.filters.global, columns: S.filters.columns };
+  if (S.filters.query) m.query = S.filters.query;
+  return m;
+}
 function sendFilters() {
   clearTimeout(filterTimer);
-  filterTimer = setTimeout(() => {
-    vscode.postMessage({ type: 'filter', global: S.filters.global, columns: S.filters.columns });
-  }, 250);
+  filterTimer = setTimeout(() => vscode.postMessage(filterMessage()), 250);
 }
 search.addEventListener('input', () => {
   if (S.loading) return;
@@ -379,6 +409,77 @@ function copy(format, header = true) {
 btnCsv.addEventListener('click', () => copy('csv'));
 btnJson.addEventListener('click', () => copy('json'));
 btnSchema.addEventListener('click', () => { S.schemaOpen = !S.schemaOpen; renderSchema(); layout(); });
+
+// ---------- Pro ----------
+function proOn() { return !!(S.pro.enabled && S.pro.licensed); }
+
+function renderPro() {
+  const p = S.pro;
+  proBadge.hidden = !p.enabled;
+  proBadge.classList.toggle('active', !!p.licensed);
+  proBadge.title = p.licensed
+    ? 'Table Viewer Pro is active' + (p.expires ? ` until ${p.expires}` : '')
+    : (p.note ? p.note + ' ' : '') + 'Table Viewer Pro: bigger files, SQL filter, export, column stats. Click for details.';
+  btnQuery.hidden = btnStats.hidden = btnExport.hidden = !proOn();
+  if (!proOn()) { S.queryOpen = false; S.statsOpen = false; }
+  queryBar.hidden = !S.queryOpen;
+  btnQuery.classList.toggle('on', S.queryOpen || !!S.filters.query);
+  statsPanel.hidden = !S.statsOpen;
+  btnStats.classList.toggle('on', S.statsOpen);
+}
+
+proBadge.addEventListener('click', () => { if (!S.pro.licensed) vscode.postMessage({ type: 'openProPage' }); });
+btnQuery.addEventListener('click', () => {
+  S.queryOpen = !S.queryOpen;
+  renderPro();
+  if (S.queryOpen) queryInput.focus();
+  layout();
+});
+function applyQuery() {
+  if (S.loading) return flash('Still loading. The SQL filter starts when all rows are in.');
+  const q = queryInput.value.trim();
+  if (q) S.filters.query = q; else delete S.filters.query;
+  queryErr.textContent = '';
+  flash('Filtering…', true);
+  clearTimeout(filterTimer);
+  vscode.postMessage(filterMessage());
+  renderPro();
+}
+queryRun.addEventListener('click', applyQuery);
+queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyQuery(); } });
+queryClear.addEventListener('click', () => { queryInput.value = ''; applyQuery(); });
+btnStats.addEventListener('click', () => {
+  S.statsOpen = !S.statsOpen;
+  renderPro();
+  if (S.statsOpen) requestStats();
+  layout();
+});
+btnExport.addEventListener('click', () => {
+  if (S.loading) return flash('Still loading. Export starts when all rows are in.');
+  vscode.postMessage({ type: 'export' });
+});
+
+function requestStats() {
+  if (!S.statsOpen) return;
+  if (S.loading) { statsPanel.textContent = 'Stats start when all rows are in.'; return; }
+  statsPanel.textContent = 'Counting…';
+  vscode.postMessage({ type: 'stats' });
+}
+
+function renderStats(msg) {
+  statsPanel.textContent = '';
+  statsPanel.append(el('div', 'meta', `Stats for ${fmtN(msg.rows)} rows in view · ${fmtN(msg.ms)} ms`));
+  const t = el('table', 'fields');
+  const hr = el('tr');
+  ['Column', 'Type', 'Count', 'Nulls', 'Distinct', 'Min', 'Max', 'Mean / length', 'Top values'].forEach(h => hr.append(el('th', null, h)));
+  t.append(hr);
+  for (const cells of M.statsRows(msg)) {
+    const tr = el('tr');
+    cells.forEach((v, i) => tr.append(el('td', i === 0 ? 'fname' : i >= 2 && i <= 4 ? 'num' : null, v)));
+    t.append(tr);
+  }
+  statsPanel.append(t);
+}
 sheetSel.addEventListener('change', () => {
   flash('Loading sheet…', true);
   vscode.postMessage({ type: 'sheet', name: sheetSel.value });
@@ -468,7 +569,10 @@ function updateStatus() {
 function showBanner() {
   const parts = [];
   if (S.error) parts.push(S.error);
-  else if (S.info.truncated && S.info.truncatedReason) parts.push(S.info.truncatedReason);
+  else if (S.info.truncated && S.info.truncatedReason) {
+    parts.push(S.info.truncatedReason);
+    if (S.pro.enabled && !S.pro.licensed) parts.push('Table Viewer Pro loads larger files.');
+  }
   banner.textContent = '';
   if (!parts.length) { banner.hidden = true; return; }
   banner.hidden = false;
@@ -520,6 +624,8 @@ window.addEventListener('message', ev => {
         clearTimeout(filterTimer);
         S.filters = M.filtersFromMeta(msg.filters);
         search.value = S.filters.global;
+        queryInput.value = S.filters.query || '';
+        renderPro();
       }
       GUTTER_W = M.gutterWidth(Math.max(S.totalRows, S.info.totalRows || 0));
       app.style.setProperty('--gutter-w', GUTTER_W + 'px');
@@ -538,6 +644,7 @@ window.addEventListener('message', ev => {
       renderSchema();
       updateStatus();
       layout();
+      if (!S.loading) requestStats();
       if (savedView && !S.loading && S.columns.length) {
         const r = M.restoreView(savedView, S.columns.length, S.info.activeSheet);
         savedView = null;
@@ -573,17 +680,42 @@ window.addEventListener('message', ev => {
       S.pending.clear();
       S.anchor = S.focus = null;
       updateSortArrows();
+      queryErr.textContent = '';
       flash(`Done in ${fmtN(msg.ms)} ms`);
+      requestStats();
       updateStatus();
       layout();
       break;
     case 'copied':
       flash(`Copied ${fmtN(msg.rows)} rows as ${String(msg.format).toUpperCase()}` + (msg.truncated ? ' (cut at the copy limit)' : ''));
       break;
+    case 'pro':
+      S.pro = msg.enabled ? { enabled: true, licensed: !!msg.licensed, expires: msg.expires || null, note: msg.note || '' } : { enabled: false };
+      renderPro();
+      showBanner();
+      layout();
+      break;
+    case 'stats':
+      if (S.statsOpen && msg.version === S.version) renderStats(msg);
+      break;
+    case 'exporting':
+      flash(`Exporting ${String(msg.format).toUpperCase()}…`, true);
+      break;
+    case 'exported':
+      flash(msg.ok ? `Exported ${fmtN(msg.rows)} rows (${M.formatBytes(msg.bytes)})` : 'Export failed.');
+      break;
     case 'requestCopy':
       copy(msg.format === 'json' ? 'json' : 'csv');
       break;
     case 'error':
+      if (msg.code === 'QUERY') {
+        // The worker dropped the bad query and applied the other filters. Keep the text so it can be fixed.
+        delete S.filters.query;
+        renderPro();
+        queryErr.textContent = msg.message;
+        flash('The SQL filter has an error. It is not applied.');
+        break;
+      }
       if (msg.transient) { flash(msg.message); break; }
       S.error = msg.message;
       S.loading = false;

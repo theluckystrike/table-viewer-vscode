@@ -3,10 +3,12 @@
 const { parentPort } = require('worker_threads');
 const { createSession } = require('./core/protocol');
 const { loadFile } = require('./core/readers');
+const { writeChunks } = require('./core/exportfile');
 
 const session = createSession({
   post: msg => parentPort.postMessage(msg),
   loader: (source, format, options, onPreview) => loadFile(source, format, options, onPreview),
+  writeFile: writeChunks,
 });
 
 parentPort.on('message', msg => {

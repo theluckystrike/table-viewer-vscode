@@ -245,8 +245,13 @@ class Table {
     this.rebuild();
   }
 
+  /** filters: {global, columns, query?}. A bad query throws a QueryError and leaves the view as it was. */
   setFilters(filters) {
+    const query = typeof filters.query === 'string' ? filters.query.trim() : '';
+    const queryPred = query ? require('./query').compileQuery(query, this) : null; // lazy: query.js requires table.js
     this.filters = { global: String(filters.global || ''), columns: { ...(filters.columns || {}) } };
+    if (query && queryPred) this.filters.query = query;
+    this._queryPred = queryPred;
     this.rebuild();
   }
 
@@ -260,8 +265,9 @@ class Table {
       if (p) preds.push([col, p]);
     }
     const g = this.filters.global.trim().toLowerCase();
+    const q = this._queryPred || null;
     let ids = null;
-    if (preds.length || g) {
+    if (preds.length || g || q) {
       const keep = new Uint32Array(n);
       let m = 0;
       const nc = this.columns.length;
@@ -270,6 +276,7 @@ class Table {
         for (let i = 0; i < preds.length; i++) {
           if (!preds[i][1](this.get(r, preds[i][0]))) { ok = false; break; }
         }
+        if (ok && q && !q(r)) ok = false;
         if (ok && g) {
           ok = false;
           for (let c = 0; c < nc; c++) {
@@ -343,6 +350,49 @@ class Table {
   }
 }
 
+const EXPORT_FORMATS = Object.freeze({ csv: 'csv', tsv: 'tsv', json: 'json', jsonl: 'jsonl' });
+
+/**
+ * Text chunks for the whole current view (all columns, filtered and sorted), for export (Pro).
+ * Yields strings of up to `batch` rows so a caller can stream them to a file.
+ * format: 'csv' | 'tsv' | 'json' (array of objects) | 'jsonl' (one object per line).
+ */
+Table.prototype.exportChunks = function* exportChunks(format, batch = 5000) {
+  if (!EXPORT_FORMATS[format]) throw new Error(`Unknown export format ${format}`);
+  const n = this.viewCount;
+  const nc = this.columns.length;
+  const names = this.columns.map(c => c.name);
+  const types = this.columns.map(c => c.type);
+  if (format === 'csv' || format === 'tsv') {
+    const d = format === 'tsv' ? '\t' : ',';
+    yield names.map(x => csvEscape(x, d)).join(d) + '\r\n';
+    for (let s = 0; s < n; s += batch) {
+      const parts = [];
+      for (let r = s, e = Math.min(n, s + batch); r < e; r++) {
+        const id = this.rowId(r);
+        const cells = new Array(nc);
+        for (let c = 0; c < nc; c++) cells[c] = csvEscape(formatValue(this.get(id, c), types[c]), d);
+        parts.push(cells.join(d));
+      }
+      yield parts.join('\r\n') + '\r\n';
+    }
+    return;
+  }
+  const json = format === 'json';
+  if (json) yield n ? '[\n' : '[]\n';
+  for (let s = 0; s < n; s += batch) {
+    const parts = [];
+    for (let r = s, e = Math.min(n, s + batch); r < e; r++) {
+      const id = this.rowId(r);
+      const o = {};
+      for (let c = 0; c < nc; c++) o[names[c]] = jsonValue(this.get(id, c), types[c]);
+      parts.push((json ? '  ' : '') + JSON.stringify(o));
+    }
+    const last = s + batch >= n;
+    yield json ? parts.join(',\n') + (last ? '\n]\n' : ',\n') : parts.join('\n') + '\n';
+  }
+};
+
 function clamp(v, lo, hi) { v = Math.floor(Number(v)); if (Number.isNaN(v)) v = lo; return Math.max(lo, Math.min(hi, v)); }
 
 function uniqueNames(columns) {
@@ -375,5 +425,5 @@ function tableFromStringColumns(header, cols, rowCount) {
 
 module.exports = {
   Table, inferStringType, convertStringColumn, formatValue, jsonValue, parseFilter, csvEscape,
-  compareKeys, sortKey, tableFromStringColumns, packNumeric, uniqueNames, NUMERIC,
+  compareKeys, sortKey, tableFromStringColumns, packNumeric, uniqueNames, NUMERIC, EXPORT_FORMATS,
 };

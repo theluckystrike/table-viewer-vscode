@@ -59,3 +59,13 @@ body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size
 .finput { width: 100%; height: 19px; padding: 0 4px; font-size: 11px; }
 .status { display: flex; gap: 16px; padding: 3px 10px; font-size: 12px; border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; opacity: .9; }
 .status .mid { flex: 1; text-align: center; }
+/* Pro (shown only when the Pro switch is on) */
+.pro-badge { font: inherit; font-size: 10px; letter-spacing: .5px; padding: 1px 7px; border-radius: 8px; cursor: pointer; background: transparent; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.4)); }
+.pro-badge:hover { color: var(--vscode-textLink-foreground); border-color: var(--vscode-textLink-foreground); }
+.pro-badge.active { cursor: default; color: var(--vscode-charts-green, #89d185); border-color: currentColor; }
+.querybar { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; }
+.qlabel { font-family: var(--vscode-editor-font-family); font-size: 12px; opacity: .7; }
+.qinput { flex: 1; min-width: 200px; padding: 3px 6px; font-family: var(--vscode-editor-font-family); font-size: 12px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, transparent); border-radius: 2px; }
+.qerr { color: var(--vscode-errorForeground, #f14c4c); max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statspanel { max-height: 40vh; overflow: auto; padding: 8px 10px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; }
+.statspanel td.num { text-align: right; font-variant-numeric: tabular-nums; }

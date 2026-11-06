@@ -108,6 +108,16 @@
         "command": "tableViewer.openWalkthrough",
         "title": "Get Started",
         "category": "Table Viewer"
+      },
+      {
+        "command": "tableViewer.enterLicenseKey",
+        "title": "Enter license key",
+        "category": "Table Viewer"
+      },
+      {
+        "command": "tableViewer.removeLicenseKey",
+        "title": "Remove license key",
+        "category": "Table Viewer"
       }
     ],
     "menus": {
@@ -133,6 +143,14 @@
         {
           "command": "tableViewer.copySelectionAsJson",
           "when": "activeCustomEditorId =~ /^tableViewer\\./"
+        },
+        {
+          "command": "tableViewer.enterLicenseKey",
+          "when": "tableViewer.proEnabled"
+        },
+        {
+          "command": "tableViewer.removeLicenseKey",
+          "when": "tableViewer.proEnabled"
         }
       ]
     },

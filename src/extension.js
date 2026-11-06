@@ -5,12 +5,18 @@ const { Worker } = require('worker_threads');
 const { buildHtml } = require('./html');
 const { validateWebviewMessage } = require('./core/protocol');
 const { formatFromPath } = require('./core/formats');
+const config = require('./config');
+const { verifyLicense, normalizeKey } = require('./license');
+const { entitlement, effectiveLimits, isEnabled } = require('./pro');
 
 const VIEW_TYPE = 'tableViewer.table';
 const TEXT_VIEW_TYPE = 'tableViewer.tableText';
 const STATE_MESSAGES = new Set(['meta', 'view', 'rows']);
 const panels = new Set();
 let activePanel = null;
+// License state. Checked offline against the public key in config; loaded from SecretStorage on activate.
+let licenseCheck = null;
+let licenseLoaded = Promise.resolve();
 
 function settings() {
   const c = vscode.workspace.getConfiguration('tableViewer');
@@ -22,12 +28,51 @@ function settings() {
   };
 }
 
+/** Names of the size settings the user set (so Pro defaults do not override them). */
+function userSetKeys() {
+  const c = vscode.workspace.getConfiguration('tableViewer');
+  if (typeof c.inspect !== 'function') return [];
+  return ['maxRows', 'maxFileSizeMB', 'maxExcelSizeMB'].filter(k => {
+    const i = c.inspect(k);
+    return !!i && [i.globalValue, i.workspaceValue, i.workspaceFolderValue].some(v => v !== undefined);
+  });
+}
+
+function currentEntitlement() {
+  // Re-check the stored key each time, so a yearly key stops on its end date without a restart.
+  if (licenseCheck && licenseCheck.key) licenseCheck = { ...verifyLicense(licenseCheck.key, { publicKey: config.LICENSE_PUBLIC_KEY }), key: licenseCheck.key };
+  return entitlement(config, licenseCheck);
+}
+
+/** What the webview needs to draw the Pro badge and buttons. Nothing when Pro is switched off. */
+function proState(ent) {
+  if (!ent.enabled) return { type: 'pro', enabled: false };
+  const out = { type: 'pro', enabled: true, licensed: ent.licensed, plan: ent.plan, expires: ent.expires };
+  if (!ent.licensed && licenseCheck && licenseCheck.reason === 'expired') out.note = licenseCheck.message;
+  return out;
+}
+
+function setLicense(check) {
+  licenseCheck = check;
+  const ent = currentEntitlement();
+  for (const p of panels) p.setPro(ent);
+}
+
+const EXPORT_CHOICES = [
+  { id: 'csv', label: 'CSV', description: 'comma-separated, with a header row' },
+  { id: 'tsv', label: 'TSV', description: 'tab-separated, with a header row' },
+  { id: 'json', label: 'JSON', description: 'one array of objects' },
+  { id: 'jsonl', label: 'JSON Lines', description: 'one object per line' },
+];
+
 class TableEditorProvider {
   constructor(context) { this.context = context; }
 
   openCustomDocument(uri) { return { uri, dispose() {} }; }
 
   async resolveCustomEditor(document, panel) {
+    // Before the HTML is set, so the webview's first 'ready' cannot arrive before the listener exists.
+    await licenseLoaded;
     const ctx = this.context;
     const dist = vscode.Uri.joinPath(ctx.extensionUri, 'dist');
     const media = vscode.Uri.joinPath(ctx.extensionUri, 'media');
@@ -41,8 +86,11 @@ class TableEditorProvider {
       title: name,
     });
 
-    const opts = settings();
+    let ent = currentEntitlement();
+    const opts = effectiveLimits(settings(), ent, userSetKeys());
+    delete opts.capped;
     const format = formatFromPath(uri.path);
+    let exportTarget = null;
     let worker = null;
     let disposed = false;
     let webviewReady = false;
@@ -72,13 +120,61 @@ class TableEditorProvider {
       });
       worker.on('message', msg => {
         if (msg && msg.type === 'copyResult') return onCopy(msg);
+        if (msg && msg.type === 'exportResult') return onExport(msg);
         toWebview(msg);
       });
       worker.on('error', e => failHost(`The reader stopped: ${e.message}`));
       worker.on('exit', code => {
         if (!disposed && code !== 0 && !fatal) failHost('The reader ran out of memory or crashed. Lower tableViewer.maxRows and reopen the file.');
       });
-      worker.postMessage({ type: 'open', source, format, options: opts });
+      worker.postMessage({ type: 'open', source, format, options: opts, pro: isEnabled('export', ent) });
+    };
+
+    const proError = message => toWebview({ type: 'error', message, code: 'PRO', transient: true });
+
+    const startExport = async suggested => {
+      if (!isEnabled('export', ent)) return proError('Export is a Table Viewer Pro feature.');
+      if (exportTarget) return proError('An export is already running.');
+      let fmt = suggested;
+      if (!fmt) {
+        const pick = await vscode.window.showQuickPick(EXPORT_CHOICES, { title: 'Export the rows in view', placeHolder: 'Pick a format' });
+        if (!pick) return undefined;
+        fmt = pick.id;
+      }
+      const choice = EXPORT_CHOICES.find(c => c.id === fmt);
+      const base = name.replace(/\.[^.]+$/, '');
+      const dir = uri.scheme === 'file' ? vscode.Uri.joinPath(uri, '..') : undefined;
+      const target = await vscode.window.showSaveDialog({
+        title: `Export ${choice.label}`,
+        saveLabel: 'Export',
+        defaultUri: dir ? vscode.Uri.joinPath(dir, `${base}-export.${fmt}`) : undefined,
+        filters: { [choice.label]: [fmt] },
+      });
+      if (!target || !worker) return undefined;
+      exportTarget = target;
+      toWebview({ type: 'exporting', format: fmt });
+      worker.postMessage({ type: 'export', format: fmt, path: target.scheme === 'file' ? target.fsPath : undefined });
+      return undefined;
+    };
+
+    const onExport = async msg => {
+      const target = exportTarget;
+      exportTarget = null;
+      if (!msg.ok) {
+        toWebview({ type: 'exported', ok: false });
+        vscode.window.showErrorMessage(`Export failed: ${msg.error}`);
+        return;
+      }
+      try {
+        if (typeof msg.text === 'string' && target) await vscode.workspace.fs.writeFile(target, Buffer.from(msg.text, 'utf8'));
+      } catch (e) {
+        toWebview({ type: 'exported', ok: false });
+        vscode.window.showErrorMessage(`Export failed: ${e.message || e}`);
+        return;
+      }
+      toWebview({ type: 'exported', ok: true, rows: msg.rows, bytes: msg.bytes, format: msg.format });
+      const file = target ? path.posix.basename(target.path) : 'the file';
+      vscode.window.showInformationMessage(`Exported ${Number(msg.rows).toLocaleString('en-US')} rows to ${file}.`);
     };
 
     const onCopy = async msg => {
@@ -92,6 +188,11 @@ class TableEditorProvider {
     const state = {
       panel,
       copy: format => panel.webview.postMessage({ type: 'requestCopy', format }),
+      setPro: next => {
+        ent = next;
+        if (worker) worker.postMessage({ type: 'entitlement', pro: isEnabled('export', ent) });
+        toWebview(proState(ent));
+      },
     };
     panels.add(state);
     activePanel = state;
@@ -108,6 +209,7 @@ class TableEditorProvider {
         // Sent on first load and again each time the tab is shown after being hidden.
         webviewReady = true;
         panel.webview.postMessage({ type: 'init', fileName: name, format });
+        if (ent.enabled) panel.webview.postMessage(proState(ent));
         while (queue.length) panel.webview.postMessage(queue.shift());
         if (fatal) panel.webview.postMessage(fatal);
         else if (worker) worker.postMessage({ type: 'resync' });
@@ -117,6 +219,11 @@ class TableEditorProvider {
         vscode.commands.executeCommand('workbench.action.openSettings', 'tableViewer');
         return;
       }
+      if (msg.type === 'openProPage') {
+        if (ent.enabled) vscode.env.openExternal(vscode.Uri.parse(config.PRO_URL));
+        return;
+      }
+      if (msg.type === 'export') { startExport(msg.format); return; }
       if (!worker) return;
       if (msg.type === 'copy') msg.maxRows = settings().maxCopyRows;
       worker.postMessage(msg);
@@ -138,8 +245,58 @@ class TableEditorProvider {
   }
 }
 
+async function loadStoredLicense(context) {
+  if (!config.PRO_ENABLED || !context.secrets) return;
+  licenseCheck = null;
+  try {
+    const key = await context.secrets.get(config.LICENSE_SECRET);
+    if (key) licenseCheck = { ...verifyLicense(key, { publicKey: config.LICENSE_PUBLIC_KEY }), key };
+  } catch {
+    licenseCheck = null;
+  }
+}
+
+async function enterLicenseKey(context) {
+  if (!config.PRO_ENABLED) {
+    vscode.window.showInformationMessage('Table Viewer Pro is not available yet. Every feature in this version is free.');
+    return;
+  }
+  const check = v => verifyLicense(v, { publicKey: config.LICENSE_PUBLIC_KEY });
+  const raw = await vscode.window.showInputBox({
+    title: 'Table Viewer: Enter license key',
+    prompt: 'Paste the key from your purchase email. It starts with TVPRO1. The check runs offline.',
+    ignoreFocusOut: true,
+    validateInput: v => (!v || !v.trim() ? null : check(v).valid ? null : check(v).message),
+  });
+  if (raw === undefined || !raw.trim()) return;
+  const res = check(raw);
+  if (!res.valid) { vscode.window.showErrorMessage(res.message); return; }
+  const key = normalizeKey(raw);
+  await context.secrets.store(config.LICENSE_SECRET, key);
+  setLicense({ ...res, key });
+  const until = res.license.expires ? ` until ${res.license.expires}` : '';
+  vscode.window.showInformationMessage(`Table Viewer Pro is on${until}. Thank you! Reopen a file to load past the free size limits.`);
+}
+
+async function removeLicenseKey(context) {
+  if (!config.PRO_ENABLED || !context.secrets) return;
+  const ok = await vscode.window.showWarningMessage('Remove the Table Viewer Pro license key from this machine?', { modal: true }, 'Remove');
+  if (ok !== 'Remove') return;
+  await context.secrets.delete(config.LICENSE_SECRET);
+  setLicense(null);
+  vscode.window.showInformationMessage('The license key is removed. You can enter it again at any time.');
+}
+
 function activate(context) {
   const provider = new TableEditorProvider(context);
+  vscode.commands.executeCommand('setContext', 'tableViewer.proEnabled', !!config.PRO_ENABLED);
+  licenseLoaded = loadStoredLicense(context);
+  if (context.secrets && context.secrets.onDidChange) {
+    // Another window entered or removed the key.
+    context.subscriptions.push(context.secrets.onDidChange(e => {
+      if (e.key === config.LICENSE_SECRET) licenseLoaded = loadStoredLicense(context).then(() => setLicense(licenseCheck));
+    }));
+  }
   context.subscriptions.push(
     ...[VIEW_TYPE, TEXT_VIEW_TYPE].map(id => vscode.window.registerCustomEditorProvider(id, provider, {
       supportsMultipleEditorsPerDocument: true,
@@ -154,6 +311,8 @@ function activate(context) {
     }),
     vscode.commands.registerCommand('tableViewer.copySelectionAsCsv', () => activePanel && activePanel.copy('csv')),
     vscode.commands.registerCommand('tableViewer.copySelectionAsJson', () => activePanel && activePanel.copy('json')),
+    vscode.commands.registerCommand('tableViewer.enterLicenseKey', () => enterLicenseKey(context)),
+    vscode.commands.registerCommand('tableViewer.removeLicenseKey', () => removeLicenseKey(context)),
     vscode.commands.registerCommand('tableViewer.openWalkthrough', () =>
       vscode.commands.executeCommand('workbench.action.openWalkthrough', 'zovo.table-viewer-vscode#tableViewer.start', false)),
   );

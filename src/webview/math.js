@@ -73,6 +73,24 @@ function formatBytes(n) {
 }
 
 /** Filter state from a worker 'meta' message, copied so the webview can edit it. */
+/** Rows for the Pro stats panel: one array of display strings per column. */
+function statsRows(stats) {
+  const n = v => (v === undefined || v === null ? '' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 6 }));
+  return (stats && Array.isArray(stats.columns) ? stats.columns : []).map(s => [
+    String(s.name),
+    String(s.type),
+    n(s.count),
+    n(s.nulls),
+    n(s.distinct) + (s.distinctCapped ? '+' : ''),
+    s.min === null || s.min === undefined ? '' : String(s.min),
+    s.max === null || s.max === undefined ? '' : String(s.max),
+    s.mean === undefined ? (s.minLength !== undefined ? `length ${s.minLength}..${s.maxLength}` : '') : n(s.mean),
+    s.top && s.top.length && s.top[0].count === 1 && !s.topApprox
+      ? 'all different'
+      : (s.top || []).map(t => `${t.value === '' ? '(empty)' : t.value} (${n(t.count)})`).join(', ') + (s.topApprox ? ' ~' : ''),
+  ]);
+}
+
 function filtersFromMeta(f) {
   const out = { global: '', columns: {} };
   if (!f || typeof f !== 'object') return out;
@@ -80,6 +98,7 @@ function filtersFromMeta(f) {
   if (f.columns && typeof f.columns === 'object') {
     for (const [k, v] of Object.entries(f.columns)) if (typeof v === 'string' && v.trim()) out.columns[k] = v;
   }
+  if (typeof f.query === 'string' && f.query.trim()) out.query = f.query;
   return out;
 }
 
@@ -101,4 +120,4 @@ function restoreView(saved, columnCount, sheet) {
   };
 }
 
-module.exports = { gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };
+module.exports = { statsRows, gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };

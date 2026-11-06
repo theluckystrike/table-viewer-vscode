@@ -2,7 +2,7 @@
   "name": "table-viewer-vscode",
   "displayName": "CSV Viewer, Excel Viewer & Parquet Viewer",
   "description": "CSV viewer, Excel viewer and Parquet viewer that opens .csv, .tsv, .xlsx, .xls and .parquet files as a fast sortable, filterable table, handles 1M rows and needs no Python.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -65,13 +65,27 @@
         "viewType": "tableViewer.table",
         "displayName": "Table Viewer",
         "selector": [
-          { "filenamePattern": "*.parquet" },
-          { "filenamePattern": "*.pq" },
-          { "filenamePattern": "*.xlsx" },
-          { "filenamePattern": "*.xlsm" },
-          { "filenamePattern": "*.xlsb" },
-          { "filenamePattern": "*.xls" },
-          { "filenamePattern": "*.ods" }
+          {
+            "filenamePattern": "*.parquet"
+          },
+          {
+            "filenamePattern": "*.pq"
+          },
+          {
+            "filenamePattern": "*.xlsx"
+          },
+          {
+            "filenamePattern": "*.xlsm"
+          },
+          {
+            "filenamePattern": "*.xlsb"
+          },
+          {
+            "filenamePattern": "*.xls"
+          },
+          {
+            "filenamePattern": "*.ods"
+          }
         ],
         "priority": "default"
       },
@@ -79,10 +93,18 @@
         "viewType": "tableViewer.tableText",
         "displayName": "Table Viewer",
         "selector": [
-          { "filenamePattern": "*.csv" },
-          { "filenamePattern": "*.tsv" },
-          { "filenamePattern": "*.tab" },
-          { "filenamePattern": "*.psv" }
+          {
+            "filenamePattern": "*.csv"
+          },
+          {
+            "filenamePattern": "*.tsv"
+          },
+          {
+            "filenamePattern": "*.tab"
+          },
+          {
+            "filenamePattern": "*.psv"
+          }
         ],
         "priority": "option"
       }
@@ -117,6 +139,16 @@
       {
         "command": "tableViewer.removeLicenseKey",
         "title": "Remove license key",
+        "category": "Table Viewer"
+      },
+      {
+        "command": "tableViewer.supportDeveloper",
+        "title": "Support the developer",
+        "category": "Table Viewer"
+      },
+      {
+        "command": "tableViewer.moreViewers",
+        "title": "More free viewers",
         "category": "Table Viewer"
       }
     ],
@@ -185,6 +217,11 @@
           "type": "boolean",
           "default": true,
           "description": "Ask one time for a Marketplace rating after you have used Table Viewer for a few days. You can answer \"Later\" or \"Don't ask again\". Nothing is sent anywhere."
+        },
+        "tableViewer.showSupportLinks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the small Sponsor and More free viewers links at the right end of the table's status bar. The change shows in files you open next. Nothing is sent anywhere."
         }
       }
     },
@@ -198,21 +235,33 @@
             "id": "open",
             "title": "Open a data file",
             "description": "Parquet, xlsx, xls and ods files open in Table Viewer when you click them. For CSV and TSV, click the table icon in the editor title or right-click the file and pick \"Open in Table Viewer\".\n[Find a data file](command:workbench.action.quickOpen?%5B%22.parquet%22%5D)",
-            "media": { "markdown": "walkthrough/open.md" },
-            "completionEvents": ["onCommand:workbench.action.quickOpen", "onCommand:tableViewer.openInTableViewer"]
+            "media": {
+              "markdown": "walkthrough/open.md"
+            },
+            "completionEvents": [
+              "onCommand:workbench.action.quickOpen",
+              "onCommand:tableViewer.openInTableViewer"
+            ]
           },
           {
             "id": "explore",
             "title": "Sort, filter and read the schema",
             "description": "Click a header to sort. Type in the box under a header to filter (>100, 5..9, =exact, !not). The Schema button shows column types, and for Parquet the full schema, row groups and compression.",
-            "media": { "image": "images/screenshot.png", "altText": "A 1,000,000 row Parquet file open in Table Viewer, sorted by fare, with the type of each column in its header." }
+            "media": {
+              "image": "images/screenshot.png",
+              "altText": "A 1,000,000 row Parquet file open in Table Viewer, sorted by fare, with the type of each column in its header."
+            }
           },
           {
             "id": "copy",
             "title": "Copy rows as CSV or JSON",
             "description": "Drag or Shift+click to select cells, or click row numbers to select rows. Copy CSV and Copy JSON put the selection on the clipboard. Ctrl+C (Cmd+C) copies TSV for pasting into a spreadsheet.\n[Open settings](command:workbench.action.openSettings?%5B%22tableViewer%22%5D)",
-            "media": { "markdown": "walkthrough/copy.md" },
-            "completionEvents": ["onCommand:workbench.action.openSettings"]
+            "media": {
+              "markdown": "walkthrough/copy.md"
+            },
+            "completionEvents": [
+              "onCommand:workbench.action.openSettings"
+            ]
           }
         ]
       }
@@ -232,6 +281,14 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "homepage": "https://github.com/theluckystrike/table-viewer-vscode#readme",
-  "bugs": { "url": "https://github.com/theluckystrike/table-viewer-vscode/issues" },
-  "repository": { "type": "git", "url": "https://github.com/theluckystrike/table-viewer-vscode" }
+  "bugs": {
+    "url": "https://github.com/theluckystrike/table-viewer-vscode/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theluckystrike/table-viewer-vscode"
+  },
+  "sponsor": {
+    "url": "https://github.com/sponsors/theluckystrike"
+  }
 }

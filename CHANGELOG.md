@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 (2026-11-06)
+
+- The status bar under the table ends with a small line with two links, "Sponsor" (GitHub Sponsors) and "More free viewers". The new setting `tableViewer.showSupportLinks` (default `true`) hides it, and so does the "Hide" link next to them. There is no popup, and nothing is sent anywhere.
+- New commands "Table Viewer: Support the developer" and "Table Viewer: More free viewers". The second one lists the other Zovo extensions and installs only the one you pick. Ones that are not on the Marketplace yet open their GitHub page.
+- The listing gets a Sponsor button. The README has a short Support section and lists all Zovo extensions. No change to what is free or to Pro.
+
 ## 0.1.3 (2026-11-06)
 
 - Table Viewer asks one time for a Marketplace rating. It counts each success (an opened table file). After 5 of them, and no sooner than 2 days after the first, it shows a small message with "Rate it", "Later" and "Don't ask again". "Later" waits for 20 more, at most two more times. It never shows in your first session, more than once per session, when the window is not focused, or in a remote or untrusted workspace.

@@ -9,6 +9,7 @@ const config = require('./config');
 const { verifyLicense, normalizeKey } = require('./license');
 const { entitlement, effectiveLimits, isEnabled } = require('./pro');
 const { createRatingPrompt } = require('./rate');
+const { registerSupport, commandUris, showLinks } = require('./support');
 
 let rating = { success() {} };
 
@@ -79,7 +80,8 @@ class TableEditorProvider {
     const ctx = this.context;
     const dist = vscode.Uri.joinPath(ctx.extensionUri, 'dist');
     const media = vscode.Uri.joinPath(ctx.extensionUri, 'media');
-    panel.webview.options = { enableScripts: true, localResourceRoots: [dist, media] };
+    // Command links are limited to the two support commands and the settings page (footer "Hide" link).
+    panel.webview.options = { enableScripts: true, localResourceRoots: [dist, media], enableCommandUris: commandUris('tableViewer') };
     const uri = document.uri;
     const name = path.posix.basename(uri.path);
     panel.webview.html = buildHtml({
@@ -87,6 +89,7 @@ class TableEditorProvider {
       scriptUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(dist, 'webview.js')).toString(),
       styleUri: panel.webview.asWebviewUri(vscode.Uri.joinPath(media, 'webview.css')).toString(),
       title: name,
+      showSupportLinks: showLinks(vscode, 'tableViewer'),
     });
 
     let ent = currentEntitlement();
@@ -294,6 +297,7 @@ async function removeLicenseKey(context) {
 
 function activate(context) {
   rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.table-viewer-vscode', section: 'tableViewer', message: (n) => `Table Viewer has opened ${n} files for you. A rating helps other people find it.` });
+  registerSupport({ vscode, context, prefix: 'tableViewer', selfId: 'zovo.table-viewer-vscode' });
   const provider = new TableEditorProvider(context);
   vscode.commands.executeCommand('setContext', 'tableViewer.proEnabled', !!config.PRO_ENABLED);
   licenseLoaded = loadStoredLicense(context);

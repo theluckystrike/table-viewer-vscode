@@ -115,6 +115,9 @@ const statusLeft = el('span', 'left');
 const statusMid = el('span', 'mid');
 const statusRight = el('span', 'right');
 status.append(statusLeft, statusMid, statusRight);
+// The host renders the Sponsor / More free viewers line only when tableViewer.showSupportLinks is on.
+const supportLine = document.getElementById('zovo-support');
+if (supportLine) status.append(supportLine);
 app.append(toolbar, queryBar, banner, schemaPanel, statsPanel, grid, status);
 
 // ---------- header ----------

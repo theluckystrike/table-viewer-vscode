@@ -28,12 +28,13 @@ body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size
 .fields th { opacity: .75; font-weight: 600; }
 .grid { flex: 1; overflow: auto; position: relative; outline: none; }
 .sizer { position: relative; min-width: 100%; }
-.stage { position: sticky; top: 0; overflow: hidden; }
+.stage { position: sticky; top: 0; overflow: clip; }
 .head, .filters { display: flex; position: relative; z-index: 2; background: var(--vscode-editor-background); }
 .head { height: 28px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35)); }
 .filters { height: 24px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35)); }
 .body { position: relative; z-index: 1; will-change: transform; }
 .row { display: flex; height: var(--row-h); }
+.colspacer { flex: none; height: 100%; }
 .row:nth-child(even) { background: var(--vscode-list-hoverBackground, rgba(128,128,128,.06)); background: color-mix(in srgb, var(--vscode-foreground) 4%, transparent); }
 .cell { flex: none; height: 100%; padding: 0 8px; line-height: var(--row-h); white-space: pre; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid var(--vscode-panel-border, rgba(128,128,128,.15)); font-family: var(--vscode-editor-font-family); font-size: 12px; }
 .cell.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -41,8 +42,8 @@ body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size
 .cell.pending::after { content: '…'; opacity: .4; }
 .cell.sel { background: var(--vscode-editor-selectionBackground); }
 .cell.focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.gutter { width: var(--gutter-w, 64px); text-align: right; opacity: .55; position: sticky; left: 0; z-index: 3; background: var(--vscode-editor-background); font-variant-numeric: tabular-nums; cursor: pointer; user-select: none; }
-.gutter.selrow { opacity: 1; color: var(--vscode-focusBorder); }
+.gutter { width: var(--gutter-w, 64px); text-align: right; color: color-mix(in srgb, var(--vscode-foreground) 55%, transparent); position: sticky; left: 0; z-index: 3; background: var(--vscode-editor-background); font-variant-numeric: tabular-nums; cursor: pointer; user-select: none; }
+.gutter.selrow { color: var(--vscode-focusBorder); }
 .corner { cursor: pointer; text-align: center; }
 .hcell { position: relative; display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; font-family: var(--vscode-font-family); font-size: 12px; font-weight: 600; }
 .hcell:hover { background: var(--vscode-list-hoverBackground); }

@@ -7,9 +7,14 @@ const BOOL_RE = /^(true|false|TRUE|FALSE|True|False)$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
 const MAX_CELL_CHARS = 2000;
 
-/** Infer a type for a column of strings ('' = empty). Returns 'int'|'float'|'bool'|'date'|'string'|'empty'. */
+const TIME_PART_RE = /^\d{4}-\d{2}-\d{2}[T ]/;
+
+/**
+ * Infer a type for a column of strings ('' = empty).
+ * Returns 'int'|'float'|'bool'|'date'|'timestamp'|'string'|'empty'. ISO values that all carry a time are 'timestamp'.
+ */
 function inferStringType(values, limit = values.length) {
-  let int = true, float = true, bool = true, date = true, seen = 0;
+  let int = true, float = true, bool = true, date = true, time = true, seen = 0;
   for (let i = 0; i < limit; i++) {
     const v = values[i];
     if (v === '' || v === null || v === undefined) continue;
@@ -18,13 +23,14 @@ function inferStringType(values, limit = values.length) {
     if (float && !int && !FLOAT_RE.test(v)) float = false;
     if (bool && !BOOL_RE.test(v)) bool = false;
     if (date && !DATE_RE.test(v)) date = false;
+    if (date && time && !TIME_PART_RE.test(v)) time = false;
     if (!int && !float && !bool && !date) return 'string';
   }
   if (seen === 0) return 'empty';
   if (int) return 'int';
   if (float) return 'float';
   if (bool) return 'bool';
-  if (date) return 'date';
+  if (date) return time ? 'timestamp' : 'date';
   return 'string';
 }
 

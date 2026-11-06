@@ -119,3 +119,8 @@ test('formatValue covers dates, bytes, nested and long text', () => {
 test('duplicate and empty headers get unique names', () => {
   assert.deepStrictEqual(uniqueNames([{ name: 'a' }, { name: 'a' }, { name: '' }, { name: 'a_2' }]).map(c => c.name), ['a', 'a_2', 'column_3', 'a_2_2']);
 });
+
+test('ISO values that all carry a time are timestamps; plain dates stay dates', () => {
+  assert.strictEqual(inferStringType(['2026-10-25T02:36:32.787Z', '2026-10-25 02:09:23']), 'timestamp');
+  assert.strictEqual(inferStringType(['2026-10-25', '2026-10-26']), 'date');
+});

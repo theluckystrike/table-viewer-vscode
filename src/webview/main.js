@@ -253,20 +253,23 @@ function visibleRange() {
   return { first, last: Math.min(S.rowCount - 1, first + count - 1), shift };
 }
 
+// Only the columns in the horizontal viewport get cell elements, so a file with thousands of
+// columns scrolls as fast as a narrow one. A spacer stands in for the columns to the left.
 function makeRowEl() {
   const r = el('div', 'row');
   const g = el('div', 'cell gutter');
-  r.append(g);
-  const cells = [];
-  S.columns.forEach((col, c) => {
-    const d = el('div', 'cell' + (NUMERIC.has(col.type) ? ' num' : ''));
-    d.style.width = S.widths[c] + 'px';
-    r.append(d);
-    cells.push(d);
-  });
+  const spacer = el('div', 'colspacer');
+  r.append(g, spacer);
   r._g = g;
-  r._cells = cells;
+  r._spacer = spacer;
+  r._cells = [];
   return r;
+}
+
+function syncRowCells(r, c0, c1) {
+  const want = Math.max(0, c1 - c0 + 1);
+  while (r._cells.length < want) { const d = el('div', 'cell'); r.append(d); r._cells.push(d); }
+  while (r._cells.length > want) r._cells.pop().remove();
 }
 
 function render() {
@@ -274,6 +277,8 @@ function render() {
   if (!S.columns.length) { body.textContent = ''; return; }
   const { first, last, shift } = visibleRange();
   const n = Math.max(0, last - first + 1);
+  const lefts = M.columnLefts(S.widths);
+  const { c0, c1 } = M.visibleColumns(lefts, S.widths, grid.scrollLeft, grid.clientWidth, GUTTER_W);
   while (rowPool.length < n) { const r = makeRowEl(); rowPool.push(r); body.append(r); }
   body.style.transform = `translateY(${-shift}px)`;
   const sel = currentSel();
@@ -288,8 +293,13 @@ function render() {
     const row = page ? page[vr % PAGE] : null;
     r._g.textContent = row ? fmtN(row.id + 1) : fmtN(vr + 1);
     r._g.classList.toggle('selrow', !!sel && vr >= sel.r0 && vr <= sel.r1);
-    for (let c = 0; c < r._cells.length; c++) {
-      const cell = r._cells[c];
+    syncRowCells(r, c0, c1);
+    r._spacer.style.width = (c1 >= c0 ? lefts[c0] : 0) + 'px';
+    for (let j = 0; j < r._cells.length; j++) {
+      const c = c0 + j;
+      const cell = r._cells[j];
+      cell._c = c;
+      cell.style.width = S.widths[c] + 'px';
       const v = row ? row.cells[c] : undefined;
       if (!row) { cell.textContent = ''; cell.className = 'cell pending' + (NUMERIC.has(S.columns[c].type) ? ' num' : ''); }
       else {
@@ -340,8 +350,8 @@ function cellAt(x, y) {
   if (!cell) return null;
   const r = cell.parentElement._vr;
   if (r === undefined) return null;
-  const idx = Array.prototype.indexOf.call(cell.parentElement.children, cell) - 1;
-  return { r, c: Math.max(0, idx), gutter: idx < 0 };
+  if (cell.classList.contains('gutter')) return { r, c: 0, gutter: true };
+  return { r, c: cell._c === undefined ? 0 : cell._c, gutter: false };
 }
 
 body.addEventListener('mousedown', e => {
@@ -380,6 +390,13 @@ function ensureVisible(r) {
   else if (r > last - 1) grid.scrollTop = M.rowToScroll(Math.max(0, r - Math.floor(vh / ROW_H) + 1), S.rowCount, ROW_H, vh);
 }
 
+function ensureColVisible(c) {
+  const lefts = M.columnLefts(S.widths);
+  const viewW = grid.clientWidth - GUTTER_W;
+  if (lefts[c] < grid.scrollLeft) grid.scrollLeft = lefts[c];
+  else if (lefts[c] + S.widths[c] > grid.scrollLeft + viewW) grid.scrollLeft = lefts[c] + S.widths[c] - viewW;
+}
+
 grid.addEventListener('keydown', e => {
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'a') { e.preventDefault(); selectAll(); return; }
@@ -396,6 +413,7 @@ grid.addEventListener('keydown', e => {
   S.focus = f;
   if (!e.shiftKey) S.anchor = { ...f };
   ensureVisible(f.r);
+  ensureColVisible(f.c);
   render();
   updateStatus();
 });

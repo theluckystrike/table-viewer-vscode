@@ -126,3 +126,15 @@ test('empty csv file', async t => {
   assert.strictEqual(r.table.rowCount, 0);
   assert.strictEqual(r.table.columns.length, 0);
 });
+
+test('excel: times that land 1 ms off a whole second snap back, real milliseconds stay', () => {
+  const { snapExcelDate } = require('../src/core/readers');
+  assert.strictEqual(snapExcelDate(new Date('2026-10-09T17:56:04.999Z')).toISOString(), '2026-10-09T17:56:05.000Z');
+  assert.strictEqual(snapExcelDate(new Date('2026-10-09T17:56:05.001Z')).toISOString(), '2026-10-09T17:56:05.000Z');
+  assert.strictEqual(snapExcelDate(new Date('2026-10-09T17:56:05.537Z')).toISOString(), '2026-10-09T17:56:05.537Z');
+});
+
+test('excel: a damaged workbook gives a plain message instead of a parser error', async () => {
+  await assert.rejects(loadFile({ bytes: new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0, 0, 0]) }, 'excel', {}),
+    e => e.code === 'BAD_WORKBOOK' && /could not be read/.test(e.message));
+});

@@ -9,3 +9,6 @@ icon.svg
 dist/*.vsix
 *.vsix
 NOTES.md
+images/schema.png
+images/excel-light.png
+images/csv-light.png

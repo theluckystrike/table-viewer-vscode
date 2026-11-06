@@ -344,7 +344,28 @@ function readWorkbook(source, options) {
   }
   const buf = source.bytes ? Buffer.from(source.bytes.buffer || source.bytes, source.bytes.byteOffset || 0, source.bytes.byteLength) : fs.readFileSync(source.path);
   const XLSX = sheetjs();
-  return XLSX.read(buf, { type: 'buffer', dense: true, cellDates: true, cellNF: false, cellHTML: false, cellStyles: false, UTC: true });
+  try {
+    return XLSX.read(buf, { type: 'buffer', dense: true, cellDates: true, cellNF: false, cellHTML: false, cellStyles: false, UTC: true });
+  } catch (e) {
+    const detail = e && e.message ? e.message : String(e);
+    const locked = /encrypt|password/i.test(detail);
+    const err = new Error(locked
+      ? `This workbook is password protected, so it can't be read. Save a copy without a password and open that. (${detail})`
+      : `This file could not be read as a workbook. It may be damaged or not really an Excel file. (${detail})`);
+    err.code = locked ? 'ENCRYPTED' : 'BAD_WORKBOOK';
+    throw err;
+  }
+}
+
+/**
+ * Excel stores times as fractions of a day, and turning that float into a Date can land 1 ms off,
+ * so 17:56:05 shows as 17:56:04.999. Snap values within 1 ms of a whole second to that second.
+ */
+function snapExcelDate(d) {
+  const ms = d.getTime();
+  if (!Number.isFinite(ms)) return d;
+  const whole = Math.round(ms / 1000) * 1000;
+  return ms !== whole && Math.abs(ms - whole) <= 1 ? new Date(whole) : d;
 }
 
 function inferJsType(values, n) {
@@ -385,7 +406,7 @@ function sheetTable(wb, sheetName, options) {
     const vals = new Array(n);
     for (let r = 0; r < n; r++) {
       const v = rows[r + 1][c];
-      vals[r] = v === undefined ? null : v;
+      vals[r] = v === undefined ? null : v instanceof Date ? snapExcelDate(v) : v;
     }
     const h = head[c];
     columns.push({ name: h === null || h === undefined || h === '' ? XLSX.utils.encode_col(c) : String(h instanceof Date ? h.toISOString().slice(0, 10) : h), type: inferJsType(vals, n) });
@@ -417,6 +438,7 @@ async function loadFile(source, format, options, onPreview) {
 }
 
 module.exports = {
+  snapExcelDate,
   loadFile, loadCsv, loadParquet, loadExcel, sheetTable, formatFromPath, parquetType, schemaRows,
   inferJsType, DEFAULTS, PREVIEW_ROWS,
 };

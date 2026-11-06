@@ -1,15 +1,21 @@
 # Table Viewer for Parquet, Excel and CSV
 
-[![VS Code Marketplace installs](https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs)](https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode)
-[![Open VSX version](https://img.shields.io/open-vsx/v/zovo/table-viewer-vscode?label=Open%20VSX)](https://open-vsx.org/extension/zovo/table-viewer-vscode)
+<a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs" alt="VS Code installs"></a>
+<a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/v/zovo.table-viewer-vscode?label=version" alt="Version"></a>
 
 Click a Parquet, Excel or CSV file and it opens as a sortable, filterable table in about a second, even at 1,000,000 rows, with no Python and no setup.
 
-![A 1,000,000 row Parquet file in Table Viewer, sorted by fare_usd, with a 5 by 4 cell selection and the type of each column in its header](https://github.com/theluckystrike/table-viewer-vscode/raw/HEAD/images/screenshot.png)
+| Parquet, dark theme | Excel, light theme |
+|---|---|
+| <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png" alt="A 1,000,000 row Parquet file sorted by fare_usd, with a 5 by 4 cell selection and the type of each column in its header" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png" alt="An Excel workbook with three sheets, sorted by magnitude, with the sheet picker and timestamp, float and string columns" width="100%"></a> |
 
-*Real output. The file is a generated 1,000,000 row, 8 column taxi-trip Parquet file (11.7 MB, zstd). The extension's own webview script and stylesheet rendered it in headless Chrome with rows from the extension's Parquet reader, sorted by `fare_usd`. It loaded in 655 ms and sorted in 229 ms on an M-series Mac.*
+| Parquet schema, dark theme | CSV with filters, light theme |
+|---|---|
+| <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/schema.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/schema.png" alt="The Schema panel for the Parquet file, with 8 row groups, ZSTD compression, and physical and logical types for each field" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/csv-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/csv-light.png" alt="A 2,226 row CSV filtered to mag &gt;=4.5 and the word Japan, sorted by depth, with 4 rows copied as JSON" width="100%"></a> |
 
-- Opens fast. Rows are read in a background thread and only the rows on screen are drawn, so VS Code never freezes. A big CSV shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early. Excel files load whole.
+*Real output, light and dark. The Excel and CSV files hold the real USGS earthquake catalog for October 2026 (2,226 events of magnitude 2.5 or more). The Parquet file is a generated 1,000,000 row taxi-trip table (11.7 MB, zstd). Each shot is the extension's own webview page, with its Content Security Policy, fed by the extension's real reader and message protocol and captured in headless Chrome. The Parquet file loaded in 0.8 s on an M-series Mac.*
+
+- Opens fast. Rows are read in a background thread and only the rows and columns on screen are drawn, so VS Code doesn't freeze, even on a file with 5,000 columns. A big CSV shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early. Excel files load whole.
 - No Python, no kernel, no account. It's plain JavaScript that runs offline and sends nothing anywhere.
 - Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, and sort, filter and copy-as-CSV/JSON.
 
@@ -30,7 +36,6 @@ Drag or Shift+click to select cells. Click row numbers to select whole rows, or 
 
 The Schema button shows each column's type. For Parquet it also shows the full schema tree with physical and logical types, plus repetition, row groups, compression, the writer and the key-value metadata.
 
-![The Schema panel for the same Parquet file, with 8 row groups, ZSTD compression, physical and logical types for each field](https://github.com/theluckystrike/table-viewer-vscode/raw/HEAD/images/schema.png)
 
 ## Supported files
 
@@ -42,7 +47,7 @@ The Schema button shows each column's type. For Parquet it also shows the full s
 
 CSV files keep opening in the text editor by default, since people edit them as text. The delimiter (comma, tab, semicolon or pipe) is detected from the first lines, and UTF-8 and UTF-16 files with a byte order mark both work. Excel workbooks with several sheets get a sheet picker.
 
-Column types come from the Parquet schema, from Excel cell types, or for CSV from the values themselves (int, float, bool, date or string). Integers too large to hold exactly stay as text, so no digits are lost.
+Column types come from the Parquet schema, from Excel cell types, or for CSV from the values themselves (int, float, bool, date, timestamp or string). Integers too large to hold exactly stay as text, so no digits are lost.
 
 ## Limits and settings
 
@@ -85,3 +90,5 @@ npm run fixtures  # rebuilds test/fixtures (needs python3 with pyarrow)
 ## License
 
 MIT. Bundled third-party licenses are in [THIRD-PARTY-NOTICES.txt](https://github.com/theluckystrike/table-viewer-vscode/blob/HEAD/THIRD-PARTY-NOTICES.txt).
+
+[Rate this extension](https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode&ssr=false#review-details) on the Marketplace if it saved you time. A rating helps other people find it.

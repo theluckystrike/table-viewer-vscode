@@ -92,3 +92,16 @@ test('saved view state restores scroll and widths only when it fits the table', 
   assert.strictEqual(M.restoreView(null, 3, ''), null);
   assert.deepStrictEqual(M.restoreView({ widths: [1e9], scrollTop: 'x' }, 1, undefined), { widths: null, scrollTop: 0, scrollLeft: 0 });
 });
+
+test('only the columns in the horizontal viewport are drawn', () => {
+  const widths = new Array(5000).fill(100);
+  const left = M.columnLefts(widths);
+  assert.strictEqual(left[3], 300);
+  // gutter 64, viewport 1264 -> 1200 px of columns = 12 columns, plus 2 overscan each side
+  assert.deepStrictEqual(M.visibleColumns(left, widths, 0, 1264, 64), { c0: 0, c1: 13 });
+  assert.deepStrictEqual(M.visibleColumns(left, widths, 250000, 1264, 64), { c0: 2498, c1: 2513 });
+  assert.deepStrictEqual(M.visibleColumns(left, widths, 1e9, 1264, 64), { c0: 4997, c1: 4999 });
+  assert.deepStrictEqual(M.visibleColumns([], [], 0, 800, 64), { c0: 0, c1: -1 });
+  const mixed = [40, 360, 64, 200];
+  assert.deepStrictEqual(M.visibleColumns(M.columnLefts(mixed), mixed, 50, 164, 64, 0), { c0: 1, c1: 1 });
+});

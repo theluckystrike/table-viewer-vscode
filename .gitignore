@@ -1,3 +1,5 @@
 node_modules/
 dist/
 *.vsix
+scripts/screenshot/data/
+scripts/screenshot/harness.html

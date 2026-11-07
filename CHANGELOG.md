@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3 (2026-11-08)
+
+- The README and the Marketplace description now start with what was already true: it is free, with no paywall, no ads, no license banner, no evaluation popup and no account.
+- An Excel sheet whose first row has no text (only numbers, dates or true/false) no longer loses that row as column names. The row shows as data, and the columns are named A, B, C as in Excel. A sheet holding one date showed "0 rows" before.
+
 ## 0.3.2 (2026-11-08)
 
 - The "More free viewers" list and the README now use the current Marketplace names and include the newest Zovo extensions: ZIP, GCode, EPUB, HAR, font and audio viewers.

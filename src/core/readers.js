@@ -400,32 +400,46 @@ function inferJsType(values, n) {
   return 'string';
 }
 
+/** True when the first row of a sheet reads as column names: at least one text cell, or nothing in it. */
+function isHeaderRow(row) {
+  let any = false;
+  for (const v of row || []) {
+    if (v === null || v === undefined || v === '') continue;
+    if (typeof v === 'string') return true;
+    any = true;
+  }
+  return !any;
+}
+
 function sheetTable(wb, sheetName, options) {
   const o = opts(options);
   const XLSX = sheetjs();
   const name = wb.SheetNames.includes(sheetName) ? sheetName : wb.SheetNames[0];
   const ws = wb.Sheets[name];
   const rows = ws ? XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: false, UTC: true }) : [];
-  const head = rows.length ? rows[0] : [];
-  let width = head.length;
-  for (let r = 1; r < rows.length; r++) if (rows[r].length > width) width = rows[r].length;
-  const total = Math.max(0, rows.length - 1);
+  // Row 1 is the header unless it holds no text at all (only numbers, dates or booleans): then it is data,
+  // and the columns are named A, B, C as in Excel. A sheet that is just a date or a column of numbers keeps them.
+  const skip = rows.length && isHeaderRow(rows[0]) ? 1 : 0;
+  const head = skip ? rows[0] : [];
+  let width = 0;
+  for (let r = 0; r < rows.length; r++) if (rows[r].length > width) width = rows[r].length;
+  const total = Math.max(0, rows.length - skip);
   const n = Math.min(total, o.maxRows);
   const data = [];
   const columns = [];
   for (let c = 0; c < width; c++) {
     const vals = new Array(n);
     for (let r = 0; r < n; r++) {
-      const v = rows[r + 1][c];
+      const v = rows[r + skip][c];
       vals[r] = v === undefined ? null : v instanceof Date ? snapExcelDate(v) : v;
     }
     const h = head[c];
     columns.push({ name: h === null || h === undefined || h === '' ? XLSX.utils.encode_col(c) : String(h instanceof Date ? h.toISOString().slice(0, 10) : h), type: inferJsType(vals, n) });
     data.push(columns[c].type === 'int' || columns[c].type === 'float' ? packNumeric({ values: vals, nulls: null }) : { values: vals, nulls: null });
   }
-  addExcelDisplay(XLSX, ws, data, columns, n);
+  addExcelDisplay(XLSX, ws, data, columns, n, skip);
   const info = {
-    format: 'excel', sheets: wb.SheetNames.slice(), activeSheet: name, totalRows: total,
+    format: 'excel', sheets: wb.SheetNames.slice(), activeSheet: name, totalRows: total, headerRow: !!skip,
     truncated: n < total,
     truncatedReason: n < total ? `Showing the first ${n.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} rows (limit tableViewer.maxRows).` : '',
   };
@@ -443,7 +457,7 @@ function sheetTable(wb, sheetName, options) {
  */
 const DEFAULT_SHORT_DATE = /^\d{1,2}\/\d{1,2}\/\d{2}( \d{1,2}:\d{2})?$/;
 
-function addExcelDisplay(XLSX, ws, data, columns, n) {
+function addExcelDisplay(XLSX, ws, data, columns, n, skip = 1) {
   const dense = ws && ws['!data'];
   if (!dense || !n) return;
   let any = false;
@@ -463,7 +477,7 @@ function addExcelDisplay(XLSX, ws, data, columns, n) {
     let display = null;
     let count = 0;
     for (let r = 0; r < n; r++) {
-      const w = shown[r + 1] ? shown[r + 1][c] : null;
+      const w = shown[r + skip] ? shown[r + skip][c] : null;
       if (w === null || w === undefined) continue;
       const raw = r < data[c].values.length && !(data[c].nulls && data[c].nulls[r]) ? data[c].values[r] : null;
       if (raw === null || raw === undefined || typeof raw === 'string') continue;
@@ -499,6 +513,6 @@ async function loadFile(source, format, options, onPreview) {
 
 module.exports = {
   snapExcelDate,
-  loadFile, loadCsv, loadParquet, loadExcel, sheetTable, formatFromPath, parquetType, schemaRows,
+  loadFile, loadCsv, loadParquet, loadExcel, sheetTable, isHeaderRow, formatFromPath, parquetType, schemaRows,
   inferJsType, DEFAULTS, PREVIEW_ROWS, CSV_DELIMITERS,
 };

@@ -3,7 +3,9 @@
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs" alt="VS Code installs"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/v/zovo.table-viewer-vscode?label=version" alt="Version"></a>
 
-An XLSX viewer, Excel viewer, CSV viewer and Parquet viewer for VS Code. It shows Excel, CSV and Parquet files as a sortable, filterable table, even at 1,000,000 rows, with no Python and no setup. Free, with no ads, no account and no network access.
+Free, with no paywall, no ads, no license banner, no evaluation popup and no account. There is nothing to buy.
+
+An XLSX viewer, Excel viewer, CSV viewer and Parquet viewer for VS Code. It shows Excel, CSV and Parquet files as a sortable, filterable table, even at 1,000,000 rows, with no Python and no setup, and it sends nothing over the network.
 
 New in 0.3:
 

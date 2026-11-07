@@ -1,8 +1,8 @@
 {
   "name": "table-viewer-vscode",
   "displayName": "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer",
-  "description": "XLSX viewer, Excel viewer and CSV viewer that also opens Parquet as a fast sortable, filterable table: 1M rows, Excel number formats, Git compare, auto-reload on change, no Python.",
-  "version": "0.3.2",
+  "description": "Free XLSX viewer, Excel viewer and CSV viewer: no paywall, no ads, no license banner. Also opens Parquet as a fast sortable, filterable table: 1M rows, Excel number formats, Git compare, auto-reload on change, no Python.",
+  "version": "0.3.3",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",

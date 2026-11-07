@@ -166,7 +166,7 @@ class TableEditorProvider {
       });
       worker.on('message', msg => {
         if (msg && msg.type === 'error' && !msg.transient) rating.failure();
-        if (msg && msg.type === 'meta' && !counted) { counted = true; rating.success(); }
+        if (!counted && opensWithData(msg)) { counted = true; rating.success(); }
         if (msg && msg.type === 'copyResult') return onCopy(msg);
         if (msg && msg.type === 'exportResult') return onExport(msg);
         toWebview(msg);
@@ -445,5 +445,13 @@ function activate(context) {
 
 function deactivate() {}
 
+/**
+ * A table with at least one column counts as a good open for the rating ask. With no columns the view shows
+ * "This file is empty", "no rows or columns" or an error, and the ask must not come next to that note.
+ */
+function opensWithData(msg) {
+  return !!(msg && msg.type === 'meta' && Array.isArray(msg.columns) && msg.columns.length > 0);
+}
+
 module.exports = {
-  savedCsvOptions, saveCsvOptions, activate, deactivate, TableEditorProvider };
+  savedCsvOptions, saveCsvOptions, activate, deactivate, TableEditorProvider, opensWithData };

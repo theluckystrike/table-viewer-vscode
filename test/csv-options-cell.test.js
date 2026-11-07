@@ -231,3 +231,27 @@ test('a Windows-1252 CSV shows é, € and smart quotes; UTF-8 and UTF-16 are un
   const u = await loadCsv({ path: file('utf8.csv', 'a,b\nZoë,東京\n') }, {}, null, 'csv');
   assert.deepStrictEqual(u.table.getRows(0, 1).map(r => r.cells), [['Zoë', '東京']]);
 });
+
+// VER7 red team (2026-11-08): the rating ask came next to "This file is empty (0 bytes)", because any first meta
+// message counted as a good open. Only a table with at least one column counts now.
+test('rating: an empty or unreadable file never counts as a good open; a header-only or real table does', async (t) => {
+  const vscodeMock = { Uri: { file: p => ({ scheme: 'file', path: p, fsPath: p }) }, window: {}, commands: {}, workspace: { getConfiguration: () => ({ get: (_k, d) => d }) }, env: {} };
+  const orig = Module._load;
+  Module._load = function (req, ...rest) { return req === 'vscode' ? vscodeMock : orig.call(this, req, ...rest); };
+  t.after(() => { Module._load = orig; });
+  const { opensWithData } = require('../src/extension');
+  const { loadFile } = require('../src/core/readers');
+  const firstMeta = async (p, format) => {
+    const out = [];
+    const s = createSession({ post: m => out.push(m), loader: (src, fmt, o, pre) => loadFile(src, fmt, o, pre) });
+    await s.handle({ type: 'open', source: { path: p }, format, options: { maxRows: 100 } });
+    return out;
+  };
+  const counts = async (p, format) => (await firstMeta(p, format)).some(opensWithData);
+  assert.strictEqual(await counts(file('zero.csv', ''), 'csv'), false);
+  assert.strictEqual(await counts(file('zero.xlsx', ''), 'excel'), false);
+  assert.strictEqual(await counts(file('bad.parquet', 'not parquet at all\n'), 'parquet'), false);
+  assert.strictEqual(await counts(file('head.csv', 'a,b,c\n'), 'csv'), true);
+  assert.strictEqual(await counts(file('data.csv', 'a,b\n1,2\n'), 'csv'), true);
+  assert.strictEqual(opensWithData({ type: 'error', message: 'x' }), false);
+});

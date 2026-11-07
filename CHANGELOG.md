@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.2 (2026-11-08)
+
+- The "More free viewers" list and the README now use the current Marketplace names and include the newest Zovo extensions: ZIP, GCode, EPUB, HAR, font and audio viewers.
+
 ## 0.3.1 (2026-11-07)
 
 - An empty file (0 bytes) or a sheet with no data now shows a note above the grid instead of an empty table.

@@ -37,6 +37,9 @@ function fmtMB(n) { return `${(n / MB).toFixed(n < 10 * MB ? 1 : 0)} MB`; }
 function pickEncoding(head) {
   if (head.length >= 2 && head[0] === 0xff && head[1] === 0xfe) return 'utf-16le';
   if (head.length >= 2 && head[0] === 0xfe && head[1] === 0xff) return 'utf-16be';
+  // Excel's "CSV" on Windows (Western locales) writes Windows-1252, not UTF-8. If the first chunk is not valid
+  // UTF-8, read it as Windows-1252 so that é, € and smart quotes show instead of the replacement character.
+  try { new TextDecoder('utf-8', { fatal: true }).decode(head, { stream: true }); } catch { return 'windows-1252'; }
   return 'utf-8';
 }
 
@@ -514,5 +517,5 @@ async function loadFile(source, format, options, onPreview) {
 module.exports = {
   snapExcelDate,
   loadFile, loadCsv, loadParquet, loadExcel, sheetTable, isHeaderRow, formatFromPath, parquetType, schemaRows,
-  inferJsType, DEFAULTS, PREVIEW_ROWS, CSV_DELIMITERS,
+  inferJsType, DEFAULTS, PREVIEW_ROWS, CSV_DELIMITERS, pickEncoding,
 };

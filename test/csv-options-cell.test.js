@@ -216,3 +216,18 @@ test('the delimiter choice is remembered per file and applied on the next open',
   assert.deepStrictEqual(store.get('tableViewer.csvOptions'), {});
   b.close();
 });
+
+// VER7 red team (2026-11-08): a Windows-1252 CSV (Excel "CSV" on Windows) showed the replacement character for
+// é, € and smart quotes. A first chunk that is not valid UTF-8 is now read as Windows-1252.
+test('a Windows-1252 CSV shows é, € and smart quotes; UTF-8 and UTF-16 are unchanged', async () => {
+  const { pickEncoding } = require('../src/core/readers');
+  const cp = file('excel-western.csv', Buffer.from([...Buffer.from('name;note\r\nRen'), 0xe9, ...Buffer.from(';'), 0x93, ...Buffer.from('ok'), 0x94, ...Buffer.from(' 12 '), 0x80, 0x0d, 0x0a]));
+  const t = await loadCsv({ path: cp }, {}, null, 'csv');
+  assert.deepStrictEqual(t.table.getRows(0, 1).map(r => r.cells), [['René', '“ok” 12 €']]);
+  assert.strictEqual(pickEncoding(Buffer.from('naïve,€\n', 'utf8')), 'utf-8');
+  // A UTF-8 character cut at the end of the first chunk is still UTF-8.
+  assert.strictEqual(pickEncoding(Buffer.from('ab€', 'utf8').subarray(0, 4)), 'utf-8');
+  assert.strictEqual(pickEncoding(Buffer.from([0xff, 0xfe, 0x41, 0x00])), 'utf-16le');
+  const u = await loadCsv({ path: file('utf8.csv', 'a,b\nZoë,東京\n') }, {}, null, 'csv');
+  assert.deepStrictEqual(u.table.getRows(0, 1).map(r => r.cells), [['Zoë', '東京']]);
+});

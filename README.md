@@ -1,17 +1,31 @@
-# CSV Viewer, Excel Viewer (XLSX) & Parquet Viewer
+# XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer
 
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs" alt="VS Code installs"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/v/zovo.table-viewer-vscode?label=version" alt="Version"></a>
 
-A CSV viewer, Excel viewer (XLSX) and Parquet viewer for VS Code: it shows Parquet, Excel and CSV files as a sortable, filterable table, even at 1,000,000 rows, with no Python and no setup.
+An XLSX viewer, Excel viewer, CSV viewer and Parquet viewer for VS Code. It shows Excel, CSV and Parquet files as a sortable, filterable table, even at 1,000,000 rows, with no Python and no setup. Free, with no ads, no account and no network access.
 
-![A 1,000,000 row Parquet file in VS Code, sorted by fare_usd from high to low and filtered to zones that contain Airport, with 99,481 of 1,000,000 rows matching](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-parquet.png)
+New in 0.3:
 
-*A real VS Code 1.142 window running this extension on a generated 1,000,000 row taxi-trip Parquet file (12 MB, zstd, made by [`scripts/screenshot/make_trips.py`](https://github.com/theluckystrike/table-viewer-vscode/blob/main/scripts/screenshot/make_trips.py)). It loaded in 0.8 s on an M-series Mac.*
+- Excel number formats: cells look the way Excel shows them: 25.0%, $1,234.50, 1,234,567 and the dates in their own format. Sort, filters and copy still use the stored values, and the cell panel shows both.
+- Compare with Git HEAD: see which rows of a CSV, Excel or Parquet file changed since the last commit, in VS Code's diff editor. You can also compare two table files.
+- Auto-reload: when a script, `git pull` or an AI agent rewrites the file, the table reloads by itself and keeps your sort, filters and sheet.
+
+![An Excel workbook in VS Code with unit prices and revenue in dollars, margin in percent and ship dates such as 01 Jul 2026, shown with the workbook's own number formats. The cell panel under the table shows 28.0% and the stored value 0.28](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-excel-formats.png)
+
+*A real VS Code 1.142 window running this extension on a generated sales workbook (49 orders, 2 sheets). The "Excel formats: on" switch is in the toolbar.*
+
+![The diff editor showing q3-sales.xlsx at Git HEAD next to the working tree as CSV, starting with the Orders sheet section. Order Q3-1003 is marked: 92 units and $1,150 revenue at HEAD, 77 units and $962.50 now](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-compare.png)
+
+*Compare with Git HEAD on the same workbook after an edit. Each sheet is a section, and changed, added and removed rows are marked.*
 
 - Opens fast. Rows are read in a background thread and only the rows and columns on screen are drawn, so VS Code doesn't freeze, even on a file with 5,000 columns. A big CSV shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early. Excel files load whole.
 - No Python, no kernel, no account. It's plain JavaScript that runs offline and sends nothing anywhere.
 - Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, sort, filter and copy-as-CSV/JSON, and the full text of any cell with its JSON indented.
+
+![A 1,000,000 row Parquet file in VS Code, sorted by fare_usd from high to low and filtered to zones that contain Airport, with 99,481 of 1,000,000 rows matching](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-parquet.png)
+
+*A real VS Code 1.142 window running this extension on a generated 1,000,000 row taxi-trip Parquet file (12 MB, zstd, made by [`scripts/screenshot/make_trips.py`](https://github.com/theluckystrike/table-viewer-vscode/blob/main/scripts/screenshot/make_trips.py)). It loaded in 0.8 s on an M-series Mac.*
 
 ## Quick start
 
@@ -36,6 +50,39 @@ Double-click a cell, or press Enter, to open the cell panel under the table. It 
 
 Double-click the edge of a column header to fit the column to the rows loaded so far.
 
+## Excel number formats
+
+Excel stores 0.25 and shows 25%. Table Viewer now shows the cell the way Excel does, using the number format saved in the workbook: percentages, currency, thousands separators, decimals and custom date formats. Formula cells show the result Excel saved with the file.
+
+- Sort and the number filters (`>0.2`, `5..9`) use the stored values, so a column of percentages sorts as numbers.
+- The search box finds both the stored value and the text as shown, so `$1,234` finds the cell.
+- Copy CSV, Copy JSON and Ctrl+C copy the stored values, so numbers paste into a spreadsheet as numbers.
+- The cell panel (double-click a cell) shows the text and, next to it, the stored value.
+- "Excel formats: on" in the toolbar switches one tab to the stored values. The setting `tableViewer.excelFormats` sets the default.
+- Dates in Excel's default short date format (m/d/yy) stay as ISO dates such as 2024-01-15, because Excel shows that format in each reader's own locale.
+
+## Compare with Git HEAD or another file
+
+Right-click a `.csv`, `.tsv`, `.xlsx`, `.xls`, `.ods` or `.parquet` file and pick "Compare with Git HEAD", or use the Compare button in the table's toolbar. Table Viewer reads the committed version with `git cat-file` and opens both versions as CSV text in VS Code's diff editor, so changed, added and removed rows are marked. An Excel workbook gives one section per sheet.
+
+"Compare with Another Table File..." does the same for any two table files, for example last week's export and this week's. Select two files in the Explorer first and it compares those two. The command also shows in the Source Control view for changed data files.
+
+- The diff uses stored values, not the display text, so a change from 0.251 to 0.25 shows even when both display as 25%.
+- Each table is compared up to 100,000 rows (setting `tableViewer.maxCompareRows`). Past that, the text ends with a note.
+- Git runs on your machine with repository hooks switched off. It needs a trusted workspace. A file stored in Git LFS shows a note instead of a diff of the pointer file.
+
+## Auto-reload when the file changes
+
+Table Viewer watches the open file. When a script, a notebook, `git pull` or an AI agent writes it again, the table reloads within about half a second:
+
+- The sort, the column filters, the search and the Excel sheet stay. Columns are matched by name, so they survive a column that moved.
+- The old rows stay on screen until the new ones are ready, so the table never goes blank.
+- The status bar says "Reloaded: the file changed on disk (1,000 → 1,250 rows)".
+- If the file is half written and can't be read, the last good table stays, and the next change tries again.
+- The Reload button in the toolbar reads the file on request. Set `tableViewer.autoReload` to `false` to reload only with the button.
+
+![A CSV of sensor readings filtered to sensor s2 and sorted by temperature, after a script appended 20 rows. The status bar says Reloaded: the file changed on disk (40 → 60 rows), and the filter and sort are still on](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-auto-reload.png)
+
 The Schema button shows each column's type. For Parquet it also shows the full schema tree with physical and logical types, plus repetition, row groups, compression, the writer and the key-value metadata.
 
 
@@ -59,6 +106,9 @@ Column types come from the Parquet schema, from Excel cell types, or for CSV fro
 | `tableViewer.maxFileSizeMB` | 512 | How much of a CSV/TSV file to read. Parquet is read by row group, so only `maxRows` applies. |
 | `tableViewer.maxExcelSizeMB` | 50 | Excel files have to be read whole. Bigger workbooks show a message instead of loading. |
 | `tableViewer.maxCopyRows` | 100,000 | Most rows copied to the clipboard at once. |
+| `tableViewer.autoReload` | true | Reload the table when the file changes on disk. |
+| `tableViewer.excelFormats` | true | Show Excel cells with the workbook's number formats. |
+| `tableViewer.maxCompareRows` | 100,000 | Rows per table (per sheet) in Compare with Git HEAD and Compare with Another Table File. |
 | `tableViewer.askForRating` | true | Ask one time for a Marketplace rating, after 5 files and 2 days. Turn it off with `false` |
 
 On our test machine (Apple Silicon, Node 22), the test suite loads a 1,000,000 row CSV (about 30 MB) in 0.5 s and a 1,000,000 row Parquet file in 0.15 s. It sorts either one by a number column in about 0.2 s and filters in under 0.1 s. Your numbers will differ with the column count and the file.
@@ -82,6 +132,10 @@ Neither is built yet and nothing is locked today.
 | Parquet, dark theme | Excel, light theme |
 |---|---|
 | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/screenshot.png" alt="A 1,000,000 row Parquet file sorted by fare_usd, with a 5 by 4 cell selection and the type of each column in its header" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/excel-light.png" alt="An Excel workbook with three sheets, sorted by magnitude, with the sheet picker and timestamp, float and string columns" width="100%"></a> |
+
+| Excel number formats, light theme | Auto-reload after a script wrote the CSV |
+|---|---|
+| <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-excel-light.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-excel-light.png" alt="The sales workbook in the light theme with the cell panel showing $94,050.00 and the stored value 94050" width="100%"></a> | <a href="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-auto-reload.png"><img src="https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-auto-reload.png" alt="The sensor CSV after it was rewritten, still filtered and sorted, with the reload note in the status bar" width="100%"></a> |
 
 | Parquet schema, dark theme | CSV with filters, light theme |
 |---|---|

@@ -750,6 +750,7 @@ function updateStatus() {
   statusLeft.textContent = sel
     ? `Selected ${fmtN(sel.r1 - sel.r0 + 1)} × ${fmtN(sel.c1 - sel.c0 + 1)}` + (sel.r0 === sel.r1 && sel.c0 === sel.c1 && S.columns[sel.c0] ? ` · ${S.columns[sel.c0].name} (${S.columns[sel.c0].type})` : '')
     : 'Click a cell, drag or Shift+click to select. Double-click or Enter shows the full value. Ctrl/Cmd+C copies as TSV.';
+  statusLeft.title = statusLeft.textContent; // the hint can be cut in a narrow tab
   statusRight.textContent = S.timing;
   search.disabled = S.loading;
   btnCsv.disabled = btnJson.disabled = S.loading && !S.rowCount;

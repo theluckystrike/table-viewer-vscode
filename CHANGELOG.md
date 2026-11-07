@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 (2026-11-07)
+
+- Excel number formats: cells show what Excel shows (25.0%, $1,234.50, 1,234,567, dates in the workbook's format). Sort, filters and copy keep the stored values, the cell panel shows both, and "Excel formats: on" in the toolbar switches a tab to the stored values. New setting `tableViewer.excelFormats`.
+- Compare with Git HEAD and Compare with Another Table File: CSV, TSV, Excel and Parquet files open as CSV text in VS Code's diff editor, one section per Excel sheet. In the Explorer and Source Control context menus, the editor title bar and the new Compare button. New setting `tableViewer.maxCompareRows`.
+- Auto-reload: when the file changes on disk, the table reads it again and keeps the sort, filters, search and sheet. A Reload button reads it on request. New setting `tableViewer.autoReload`.
+- The Marketplace name is now "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer". The extension id, commands and settings stay the same.
+
 ## 0.2.3 (2026-11-07)
 
 - "More free viewers" now starts with the Zovo extensions most related to this one. Picking one opens its Marketplace page, where you choose to install it.

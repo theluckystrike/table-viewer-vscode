@@ -428,6 +428,7 @@ function activate(context) {
     vscode.commands.registerCommand('tableViewer.openInTableViewer', async uri => {
       const target = uri instanceof vscode.Uri ? uri : vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri;
       if (!target) { vscode.window.showInformationMessage('Open a CSV, TSV, Parquet or Excel file first.'); return; }
+      if (target.scheme === 'table-viewer-diff') { vscode.window.showInformationMessage('This is the text of a comparison. Open the data file itself in Table Viewer.'); return; }
       const fmt = formatFromPath(target.path);
       if (!fmt) { vscode.window.showInformationMessage('Table Viewer opens .csv, .tsv, .parquet, .xlsx, .xls and .ods files.'); return; }
       await vscode.commands.executeCommand('vscode.openWith', target, fmt === 'csv' || fmt === 'tsv' ? TEXT_VIEW_TYPE : VIEW_TYPE);

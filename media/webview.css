@@ -59,7 +59,9 @@ body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size
 .fcell { padding: 2px 3px; }
 .finput { width: 100%; height: 19px; padding: 0 4px; font-size: 11px; }
 .status { display: flex; gap: 16px; padding: 3px 10px; font-size: 12px; border-top: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; opacity: .9; }
-.status .mid { flex: 1; text-align: center; }
+.status .left { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status .mid { flex: 1 0 auto; text-align: center; white-space: nowrap; }
+.status .right { flex: none; white-space: nowrap; }
 /* CSV options and the cell panel */
 .csvopts { display: inline-flex; align-items: center; gap: 10px; flex: none; }
 .csvopt { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; }

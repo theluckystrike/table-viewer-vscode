@@ -246,3 +246,23 @@ test('the Compare button and the compare commands are registered', () => {
   assert.strictEqual(props['tableViewer.maxCompareRows'].default, 100000);
   assert.ok(pkg.contributes.menus['scm/resourceState/context'].some(m => m.command === 'tableViewer.compareWithHead'));
 });
+
+test('Open in Table Viewer on the text of a comparison says so instead of opening it', async () => {
+  const shown = [];
+  const opened = [];
+  const saved = { info: vscodeMock.window.showInformationMessage, exec: vscodeMock.commands.executeCommand, Uri: vscodeMock.Uri, ed: vscodeMock.window.activeTextEditor };
+  vscodeMock.window.showInformationMessage = m => { shown.push(m); };
+  vscodeMock.commands.executeCommand = async (...a) => { opened.push(a); };
+  vscodeMock.Uri = Object.assign(function Uri() {}, saved.Uri); // instanceof needs a function
+  vscodeMock.window.activeTextEditor = { document: { uri: { scheme: 'table-viewer-diff', path: '/HEAD/a.csv.csv' } } };
+  try {
+    await registered.commands['tableViewer.openInTableViewer']();
+  } finally {
+    vscodeMock.window.showInformationMessage = saved.info;
+    vscodeMock.commands.executeCommand = saved.exec;
+    vscodeMock.Uri = saved.Uri;
+    vscodeMock.window.activeTextEditor = saved.ed;
+  }
+  assert.strictEqual(opened.length, 0);
+  assert.match(shown[0], /text of a comparison/);
+});

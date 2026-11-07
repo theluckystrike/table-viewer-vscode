@@ -2,7 +2,8 @@
 // Message protocol shared by the webview, the extension host and the worker.
 // Webview -> host: ready, getRows, sort, filter, copy, sheet, openSettings, openProPage, stats, export,
 //   csvOptions (delimiter and header row for CSV/TSV), getCell (full text of one cell), copyText
-// Host -> worker: open, getRows, sort, filter, copy, sheet, resync, entitlement, stats, export, csvOptions, getCell
+// Host -> worker: open, getRows, sort, filter, copy, sheet, resync, entitlement, stats, export, csvOptions, getCell,
+//   reload (the file changed on disk: read it again, keep sort, filters and sheet), formats (Excel number formats on/off)
 // Worker -> host -> webview: meta, rows, view, copyResult, stats, exportResult, cell, error
 // Host -> webview: init, pro (Pro switch and license state), copied, exported
 // Pro features (filter.query, stats, export) run only when the worker was told pro: true.
@@ -33,7 +34,11 @@ function validateWebviewMessage(msg) {
     case 'openSettings':
     case 'openProPage':
     case 'stats':
+    case 'reload':
+    case 'compare':
       return { type: msg.type };
+    case 'formats':
+      return typeof msg.on === 'boolean' ? { type: 'formats', on: msg.on } : null;
     case 'export':
       // The host asks for the format and the file; the webview may suggest a format.
       return EXPORT_FORMATS.has(msg.format) ? { type: 'export', format: msg.format } : { type: 'export' };
@@ -111,6 +116,8 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   let lastError = null; // non-transient error, resent on resync
   let pro = false; // Pro features allowed (set by the host from the license check)
   let lastOpen = null; // the 'open' message, reused when the CSV options change
+  let formatted = true; // Excel number formats shown (tableViewer.excelFormats, toolbar switch)
+  let pendingReload = null; // a reload asked for while a load was running
   const proOnly = what => post({ type: 'error', message: `${what} is a Table Viewer Pro feature.`, code: 'PRO', transient: true });
 
   const sendMeta = (extra = {}) => {
@@ -121,6 +128,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
       viewCount: table ? table.viewCount : 0,
       info, sort: table ? table.sort : null,
       filters: filtersOut(),
+      formatted,
       ...extra,
     });
   };
@@ -138,6 +146,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     started = now();
     const options = msg.options || {};
     if (typeof msg.pro === 'boolean') pro = msg.pro;
+    if (typeof options.excelFormats === 'boolean') formatted = options.excelFormats;
     try {
       const res = await loader(msg.source, msg.format, options, (preview, previewInfo) => {
         table = preview;
@@ -146,6 +155,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
         sendMeta({ firstRowsMs: now() - started });
       });
       table = res.table;
+      table.formatted = formatted;
       info = res.info;
       loadSheet = res.loadSheet || null;
       loading = false;
@@ -156,6 +166,80 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     } catch (e) {
       loading = false;
       fail(e);
+    }
+    return runPendingReload();
+  }
+
+  function runPendingReload() {
+    if (!pendingReload) return undefined;
+    const next = pendingReload;
+    pendingReload = null;
+    return reload(next);
+  }
+
+  /**
+   * The file changed on disk (or the user pressed Reload). Read it again without a preview, so the old
+   * rows stay on screen until the new ones are ready. Sort, filters and the Excel sheet carry over by
+   * column name. If the new read fails (a half-written file), the last good table stays and a transient
+   * notice says so; the next change event tries again.
+   */
+  async function reload(msg) {
+    if (!lastOpen) return undefined;
+    if (loading) { pendingReload = msg; return undefined; }
+    const prev = table ? {
+      names: table.columns.map(c => c.name),
+      sort: table.sort,
+      filters: table.filters,
+      sheet: info && info.activeSheet,
+      rows: table.rowCount,
+    } : null;
+    const req = { ...lastOpen, source: msg.source || lastOpen.source };
+    loading = true;
+    const t0 = now();
+    let res;
+    try {
+      res = await loader(req.source, req.format, req.options || {}, null);
+      if (prev && prev.sheet && res.loadSheet && res.info && res.info.sheets && res.info.sheets.includes(prev.sheet) && res.info.activeSheet !== prev.sheet) {
+        const s = res.loadSheet(prev.sheet);
+        s.loadSheet = res.loadSheet;
+        s.info.fileSize = res.info.fileSize;
+        res = s;
+      }
+    } catch (e) {
+      loading = false;
+      if (!table) { fail(e); return runPendingReload(); } // nothing shown yet: show the error as on open
+      post({ type: 'error', message: `The file changed on disk but could not be read again: ${e && e.message ? e.message : e}. The table still shows the last version that was read.`, code: 'RELOAD', transient: true });
+      return runPendingReload();
+    }
+    lastOpen = req;
+    table = res.table;
+    table.formatted = formatted;
+    info = res.info;
+    loadSheet = res.loadSheet || null;
+    lastError = null;
+    if (prev) carryOver(prev);
+    loading = false;
+    version++;
+    loadMs = now() - t0;
+    sendMeta({ loadMs, reloaded: { before: prev ? prev.rows : 0, after: table.rowCount, manual: !!msg.manual } });
+    return runPendingReload();
+  }
+
+  /** Re-apply sort and filters on the new table, matching columns by name. */
+  function carryOver(prev) {
+    const idx = new Map(table.columns.map((c, i) => [c.name, i]));
+    const map = i => (i >= 0 && i < prev.names.length && idx.has(prev.names[i]) ? idx.get(prev.names[i]) : -1);
+    const columns = {};
+    for (const [k, v] of Object.entries(prev.filters.columns || {})) {
+      const j = map(Number(k));
+      if (j >= 0) columns[j] = v;
+    }
+    const f = { global: prev.filters.global || '', columns };
+    if (prev.filters.query && pro) f.query = prev.filters.query;
+    try { table.setFilters(f); } catch { table.setFilters({ global: f.global, columns }); }
+    if (prev.sort) {
+      const j = map(prev.sort.col);
+      if (j >= 0) table.setSort(j, prev.sort.dir);
     }
   }
 
@@ -209,6 +293,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
         lastError = null;
         res.info.fileSize = info.fileSize;
         table = res.table;
+        table.formatted = formatted;
         info = res.info;
         version++;
         return sendMeta({ loadMs: 0 });
@@ -244,6 +329,16 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
         const cell = table ? table.getCell(msg.row, msg.col) : null;
         if (!cell) return post({ type: 'cell', reqId: msg.reqId, version, row: msg.row, col: msg.col, missing: true });
         return post({ type: 'cell', reqId: msg.reqId, version, row: msg.row, col: msg.col, ...cell });
+      }
+      case 'reload':
+        return reload(msg);
+      case 'formats': {
+        formatted = !!msg.on;
+        if (!table) return undefined;
+        table.formatted = formatted;
+        if (table.filters.global) table.rebuild(); // the search also matches the Excel text
+        version++;
+        return post({ type: 'view', version, viewCount: table.viewCount, sort: table.sort, ms: 0, formatted });
       }
       case 'resync':
         sendMeta(loading || loadMs === null ? { resync: true } : { resync: true, loadMs });

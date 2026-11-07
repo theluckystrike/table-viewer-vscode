@@ -10,6 +10,7 @@ const { verifyLicense, normalizeKey } = require('./license');
 const { entitlement, effectiveLimits, isEnabled } = require('./pro');
 const { createRatingPrompt } = require('./rate');
 const { registerSupport, commandUris, showLinks } = require('./support');
+const { registerCompare } = require('./compare');
 
 let rating = { success() {} };
 
@@ -32,8 +33,16 @@ function settings() {
     maxFileSizeMB: c.get('maxFileSizeMB', 512),
     maxExcelSizeMB: c.get('maxExcelSizeMB', 50),
     maxCopyRows: c.get('maxCopyRows', 100000),
+    excelFormats: c.get('excelFormats', true) !== false,
   };
 }
+
+function autoReloadOn() {
+  return vscode.workspace.getConfiguration('tableViewer').get('autoReload', true) !== false;
+}
+
+// Wait this long after the last change event before reading the file again (writers often save in steps).
+const RELOAD_DEBOUNCE_MS = 400;
 
 /** Names of the size settings the user set (so Pro defaults do not override them). */
 function userSetKeys() {
@@ -118,16 +127,40 @@ class TableEditorProvider {
     };
     const failHost = message => { fatal = { type: 'error', message }; toWebview(fatal); };
 
-    const startWorker = async () => {
-      let source;
-      if (uri.scheme === 'file') {
-        source = { path: uri.fsPath };
-      } else {
-        const stat = await vscode.workspace.fs.stat(uri);
-        const limit = (format === 'excel' ? opts.maxExcelSizeMB : opts.maxFileSizeMB) * 1024 * 1024;
-        if (stat.size > limit) throw new Error(`This remote file is ${(stat.size / 1048576).toFixed(0)} MB. Files that are not on disk are read whole, and the limit is ${Math.round(limit / 1048576)} MB.`);
-        source = { bytes: await vscode.workspace.fs.readFile(uri) };
+    const readSource = async () => {
+      if (uri.scheme === 'file') return { path: uri.fsPath };
+      const stat = await vscode.workspace.fs.stat(uri);
+      const limit = (format === 'excel' ? opts.maxExcelSizeMB : opts.maxFileSizeMB) * 1024 * 1024;
+      if (stat.size > limit) throw new Error(`This remote file is ${(stat.size / 1048576).toFixed(0)} MB. Files that are not on disk are read whole, and the limit is ${Math.round(limit / 1048576)} MB.`);
+      return { bytes: await vscode.workspace.fs.readFile(uri) };
+    };
+
+    // Read the file again in the same worker. Sort, filters and the sheet carry over (see protocol.reload).
+    let reloadTimer = null;
+    const reloadNow = async (manual) => {
+      if (disposed || !worker || fatal) return;
+      try {
+        worker.postMessage({ type: 'reload', source: await readSource(), manual: manual === true });
+      } catch (e) {
+        toWebview({ type: 'error', message: `The file changed but could not be read again: ${e.message || e}`, transient: true });
       }
+    };
+    const scheduleReload = () => {
+      clearTimeout(reloadTimer);
+      reloadTimer = setTimeout(reloadNow, RELOAD_DEBOUNCE_MS);
+    };
+    let watcher = null;
+    if (format && uri.scheme === 'file' && typeof vscode.workspace.createFileSystemWatcher === 'function') {
+      // One watcher for this one file. It also sees changes from git, scripts and agents outside VS Code.
+      watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.joinPath(uri, '..'), name));
+      const onChange = () => { if (autoReloadOn()) scheduleReload(); };
+      watcher.onDidChange(onChange);
+      watcher.onDidCreate(onChange);
+      watcher.onDidDelete(() => toWebview({ type: 'error', message: 'The file was deleted or moved on disk. The table shows the last version that was read.', transient: true }));
+    }
+
+    const startWorker = async () => {
+      const source = await readSource();
       worker = new Worker(path.join(ctx.extensionPath, 'dist', 'worker.js'), {
         resourceLimits: { maxOldGenerationSizeMb: 4096 },
       });
@@ -201,6 +234,7 @@ class TableEditorProvider {
 
     const state = {
       panel,
+      uri,
       copy: format => panel.webview.postMessage({ type: 'requestCopy', format }),
       setPro: next => {
         ent = next;
@@ -238,6 +272,8 @@ class TableEditorProvider {
         return;
       }
       if (msg.type === 'export') { startExport(msg.format); return; }
+      if (msg.type === 'reload') { clearTimeout(reloadTimer); reloadNow(true); return; }
+      if (msg.type === 'compare') { pickCompare(uri); return; }
       if (msg.type === 'copyText') {
         Promise.resolve(vscode.env.clipboard.writeText(msg.text))
           .then(() => toWebview({ type: 'copiedText', chars: msg.text.length }), () => {});
@@ -251,6 +287,8 @@ class TableEditorProvider {
 
     panel.onDidDispose(() => {
       disposed = true;
+      clearTimeout(reloadTimer);
+      if (watcher) watcher.dispose();
       panels.delete(state);
       if (activePanel === state) activePanel = null;
       if (worker) worker.terminate();
@@ -329,10 +367,51 @@ async function removeLicenseKey(context) {
   vscode.window.showInformationMessage('The license key is removed. You can enter it again at any time.');
 }
 
+/** Toolbar "Compare" button: pick Git HEAD or another file. */
+async function pickCompare(uri) {
+  const items = [
+    { label: '$(git-commit) Compare with Git HEAD', description: 'the committed version of this file', cmd: 'tableViewer.compareWithHead' },
+    { label: '$(files) Compare with Another Table File...', description: 'CSV, TSV, Parquet or Excel', cmd: 'tableViewer.compareWithFile' },
+  ];
+  const pick = await vscode.window.showQuickPick(items, { title: 'Compare ' + path.posix.basename(uri.path), placeHolder: 'Shows changed, added and removed rows in the diff editor' });
+  if (pick) await vscode.commands.executeCommand(pick.cmd, uri);
+}
+
+/** One-shot worker that turns a table file into CSV text for the diff editor. */
+function tableText(context, source, format, name) {
+  const s = settings();
+  const max = vscode.workspace.getConfiguration('tableViewer').get('maxCompareRows', 100000);
+  return new Promise(resolve => {
+    let done = false;
+    const w = new Worker(path.join(context.extensionPath, 'dist', 'worker.js'), { resourceLimits: { maxOldGenerationSizeMb: 4096 } });
+    const finish = r => { if (done) return; done = true; w.terminate(); resolve(r); };
+    w.on('message', m => { if (m && m.type === 'textResult') finish(m); });
+    w.on('error', e => finish({ ok: false, error: e.message }));
+    w.on('exit', () => finish({ ok: false, error: 'The reader stopped (out of memory?). Lower tableViewer.maxCompareRows.' }));
+    w.postMessage({ type: 'toText', source, format, options: { maxFileSizeMB: s.maxFileSizeMB, maxExcelSizeMB: s.maxExcelSizeMB }, maxRows: max, name });
+  });
+}
+
+async function compareSource(src) {
+  if (src.bytes) return { bytes: src.bytes };
+  const uri = src.uri;
+  if (uri.scheme === 'file') return { path: uri.fsPath };
+  return { bytes: await vscode.workspace.fs.readFile(uri) };
+}
+
 function activate(context) {
   rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.table-viewer-vscode', section: 'tableViewer', message: (n) => `Table Viewer has opened ${n} files for you. A rating helps other people find it.` });
   registerSupport({ vscode, context, prefix: 'tableViewer', selfId: 'zovo.table-viewer-vscode' });
   const provider = new TableEditorProvider(context);
+  registerCompare({
+    vscode, context,
+    toText: async (src, format, name) => {
+      if (!format) return { ok: false, error: 'Not a table file.' };
+      try { return await tableText(context, await compareSource(src), format, name); } catch (e) { return { ok: false, error: e.message || String(e) }; }
+    },
+    maxBytes: p => { const s = settings(); return (formatFromPath(p) === 'excel' ? s.maxExcelSizeMB : s.maxFileSizeMB) * 1024 * 1024; },
+    activeUri: () => (activePanel ? activePanel.uri : null),
+  });
   vscode.commands.executeCommand('setContext', 'tableViewer.proEnabled', !!config.PRO_ENABLED);
   licenseLoaded = loadStoredLicense(context);
   if (context.secrets && context.secrets.onDidChange) {

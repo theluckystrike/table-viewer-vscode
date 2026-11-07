@@ -20,7 +20,7 @@ const vscodeMock = {
     showWarningMessage: () => {}, showInformationMessage: () => {},
   },
   commands: { registerCommand: (id, fn) => { registered.commands[id] = fn; return { dispose() {} }; }, executeCommand: async () => {} },
-  workspace: { getConfiguration: () => ({ get: (k, d) => (k in settings ? settings[k] : d) }), fs: {} },
+  workspace: { getConfiguration: () => ({ get: (k, d) => (k in settings ? settings[k] : d) }), fs: {}, registerTextDocumentContentProvider: () => ({ dispose() {} }) },
   env: { clipboard: { writeText: async () => {} } },
 };
 const origLoad = Module._load;

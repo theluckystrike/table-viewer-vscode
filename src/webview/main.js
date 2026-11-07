@@ -41,6 +41,7 @@ const S = {
   cellReq: 0,
   cellData: null,
   cellPretty: true,
+  formatted: true, // Excel number formats shown (worker state, sent in meta and view)
 };
 
 function el(tag, cls, text) {
@@ -71,6 +72,13 @@ btnCsv.title = 'Copy the selection as CSV with a header row (no selection: the w
 const btnJson = el('button', 'btn', 'Copy JSON');
 btnJson.title = 'Copy the selection as a JSON array of objects (no selection: the whole view)';
 const spacer = el('span', 'spacer');
+const btnReload = el('button', 'btn', 'Reload');
+btnReload.title = 'Read the file again. It also reloads by itself when the file changes on disk (tableViewer.autoReload). Sort and filters stay.';
+const btnCompare = el('button', 'btn', 'Compare');
+btnCompare.title = 'Compare with the Git HEAD version or with another table file, row by row, in the diff editor';
+const btnFormats = el('button', 'btn toggle', 'Excel formats');
+btnFormats.title = 'On: cells show the number format from the workbook (25%, $1,234.50, dates). Off: the stored values. Sort, filters and copy use the values either way.';
+btnFormats.hidden = true;
 // Pro controls. All hidden unless the host says Pro is switched on (config.PRO_ENABLED).
 const proBadge = el('button', 'pro-badge', 'Pro');
 proBadge.hidden = true;
@@ -96,7 +104,7 @@ headerChk.checked = true;
 headerChk.title = 'Off: the first line is data and the columns are named column_1, column_2, ...';
 headerLabel.append(headerChk, document.createTextNode(' Header row'));
 csvBox.append(delimLabel, headerLabel);
-toolbar.append(title, fmtBadge, stats, spacer, csvBox, sheetSel, search, btnQuery, btnSchema, btnStats, btnCsv, btnJson, btnExport, proBadge);
+toolbar.append(title, fmtBadge, stats, spacer, csvBox, sheetSel, btnFormats, search, btnQuery, btnSchema, btnStats, btnCsv, btnJson, btnExport, btnCompare, btnReload, proBadge);
 
 const queryBar = el('div', 'querybar');
 queryBar.hidden = true;
@@ -487,7 +495,7 @@ function renderCell() {
   }
   const col = S.columns[d.col];
   const view = M.cellText(d.value, col ? col.type : '', S.cellPretty);
-  cellCap.textContent = M.cellCaption(d.id + 1, col, d.length, d.truncated) + (view.json ? ' · JSON' : '');
+  cellCap.textContent = M.cellCaption(d.id + 1, col, d.length, d.truncated) + (view.json ? ' · JSON' : '') + (d.raw !== undefined && d.raw !== null ? ` · stored value ${d.raw}` : '');
   cellValue.textContent = d.value === null ? '' : view.text;
   cellValue.classList.toggle('null', d.value === null);
   btnPretty.hidden = !view.json;
@@ -558,6 +566,17 @@ function copy(format, header = true) {
 btnCsv.addEventListener('click', () => copy('csv'));
 btnJson.addEventListener('click', () => copy('json'));
 btnSchema.addEventListener('click', () => { S.schemaOpen = !S.schemaOpen; renderSchema(); layout(); });
+btnReload.addEventListener('click', () => { flash('Reading the file again…', true); vscode.postMessage({ type: 'reload' }); });
+btnCompare.addEventListener('click', () => vscode.postMessage({ type: 'compare' }));
+btnFormats.addEventListener('click', () => vscode.postMessage({ type: 'formats', on: !S.formatted }));
+
+function renderFormats() {
+  const n = (S.info && S.info.formattedCells) || 0;
+  btnFormats.hidden = !(S.format === 'excel' && n > 0);
+  btnFormats.setAttribute('aria-pressed', S.formatted ? 'true' : 'false');
+  btnFormats.classList.toggle('on', S.formatted);
+  btnFormats.textContent = S.formatted ? 'Excel formats: on' : 'Excel formats: off';
+}
 
 // ---------- Pro ----------
 function proOn() { return !!(S.pro.enabled && S.pro.licensed); }
@@ -776,6 +795,7 @@ window.addEventListener('message', ev => {
       S.sort = msg.sort || null;
       S.rowCount = msg.viewCount;
       S.totalRows = msg.rowCount;
+      if (typeof msg.formatted === 'boolean') S.formatted = msg.formatted;
       S.cache.clear();
       S.pending.clear();
       S.error = '';
@@ -810,6 +830,12 @@ window.addEventListener('message', ev => {
         sheetSel.value = S.info.activeSheet;
       }
       if (!S.loading) statusMid.textContent = '';
+      if (msg.reloaded) {
+        const b = msg.reloaded.before, a = msg.reloaded.after;
+        const what = msg.reloaded.manual ? 'Reloaded' : 'Reloaded: the file changed on disk';
+        flash(b === a ? `${what} (${fmtN(a)} rows)` : `${what} (${fmtN(b)} → ${fmtN(a)} rows)`);
+      }
+      renderFormats();
       showBanner();
       renderCsvOptions();
       if (S.cellOpen) { if (!S.focus || S.focus.r >= S.rowCount || S.focus.c >= S.columns.length) { S.anchor = S.focus = null; S.cellData = null; renderCell(); } else requestCell(); }
@@ -847,6 +873,7 @@ window.addEventListener('message', ev => {
     case 'view':
       S.version = msg.version;
       S.rowCount = msg.viewCount;
+      if (typeof msg.formatted === 'boolean') { S.formatted = msg.formatted; renderFormats(); }
       S.sort = msg.sort || null;
       S.cache.clear();
       S.pending.clear();
@@ -880,7 +907,7 @@ window.addEventListener('message', ev => {
     case 'cell':
       if (msg.reqId !== S.cellReq || !S.cellOpen) break;
       if (msg.version !== S.version || msg.missing) { S.cellData = null; renderCell(); break; }
-      S.cellData = { id: msg.id, col: msg.col, value: msg.value, length: msg.length, truncated: !!msg.truncated };
+      S.cellData = { id: msg.id, col: msg.col, value: msg.value, length: msg.length, truncated: !!msg.truncated, raw: typeof msg.raw === 'string' ? msg.raw : undefined };
       renderCell();
       break;
     case 'copiedText':

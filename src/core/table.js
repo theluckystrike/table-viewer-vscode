@@ -215,6 +215,25 @@ class Table {
     this.index = null; // Uint32Array of row ids in view order, or null for identity
     this.sort = null; // {col, dir}
     this.filters = { global: '', columns: {} };
+    // Excel: show cells with the number format from the workbook (data[c].display) instead of the raw value.
+    this.formatted = true;
+  }
+
+  /** Number of cells that have Excel display text different from the raw value. */
+  get formattedCells() {
+    let n = 0;
+    for (const d of this.data) if (d.display) n += d.displayCount || 0;
+    return n;
+  }
+
+  /** Text shown for one cell: Excel's formatted text when formats are on, else the raw value. */
+  shown(id, col) {
+    const d = this.data[col];
+    if (this.formatted && d.display) {
+      const s = d.display[id];
+      if (s !== undefined && s !== null) return s;
+    }
+    return formatValue(this.get(id, col), this.columns[col].type);
   }
 
   get(row, col) {
@@ -237,7 +256,7 @@ class Table {
       const id = this.rowId(r);
       const row = new Array(nc);
       for (let c = 0; c < nc; c++) {
-        let s = formatValue(this.get(id, c), this.columns[c].type);
+        let s = this.shown(id, c);
         if (s !== null && s.length > MAX_CELL_CHARS) s = s.slice(0, MAX_CELL_CHARS) + '…';
         row[c] = s;
       }
@@ -251,10 +270,14 @@ class Table {
     if (!Number.isInteger(viewRow) || viewRow < 0 || viewRow >= this.viewCount) return null;
     if (!Number.isInteger(col) || col < 0 || col >= this.columns.length) return null;
     const id = this.rowId(viewRow);
-    const s = formatValue(this.get(id, col), this.columns[col].type);
+    const s = this.shown(id, col);
     if (s === null) return { id, value: null, length: 0, truncated: false };
     const truncated = s.length > maxChars;
-    return { id, value: truncated ? s.slice(0, maxChars) : s, length: s.length, truncated };
+    const out = { id, value: truncated ? s.slice(0, maxChars) : s, length: s.length, truncated };
+    // Excel formats on: also send the stored value when it differs from the text shown.
+    const raw = formatValue(this.get(id, col), this.columns[col].type);
+    if (raw !== s && raw !== null) out.raw = raw.length > maxChars ? raw.slice(0, maxChars) : raw;
+    return out;
   }
 
   setSort(col, dir) {
@@ -300,6 +323,8 @@ class Table {
           for (let c = 0; c < nc; c++) {
             const v = this.get(r, c);
             if (!isNullish(v) && String(formatValue(v)).toLowerCase().includes(g)) { ok = true; break; }
+            const dsp = this.formatted && this.data[c].display ? this.data[c].display[r] : null;
+            if (dsp && dsp.toLowerCase().includes(g)) { ok = true; break; }
           }
         }
         if (ok) keep[m++] = r;

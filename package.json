@@ -117,6 +117,17 @@
         "icon": "$(table)"
       },
       {
+        "command": "tableViewer.compareWithHead",
+        "title": "Compare with Git HEAD",
+        "category": "Table Viewer",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "tableViewer.compareWithFile",
+        "title": "Compare with Another Table File...",
+        "category": "Table Viewer"
+      },
+      {
         "command": "tableViewer.copySelectionAsCsv",
         "title": "Copy Selection as CSV",
         "category": "Table Viewer"
@@ -158,6 +169,11 @@
           "command": "tableViewer.openInTableViewer",
           "when": "resourceExtname =~ /^\\.(csv|tsv|tab|psv)$/ && activeEditor == workbench.editors.files.textFileEditor",
           "group": "navigation"
+        },
+        {
+          "command": "tableViewer.compareWithHead",
+          "when": "activeCustomEditorId =~ /^tableViewer\\./ && resourceScheme == file",
+          "group": "navigation@30"
         }
       ],
       "explorer/context": [
@@ -165,6 +181,16 @@
           "command": "tableViewer.openInTableViewer",
           "when": "resourceExtname =~ /^\\.(csv|tsv|tab|psv|parquet|pq|xlsx|xlsm|xlsb|xls|ods)$/",
           "group": "navigation@20"
+        },
+        {
+          "command": "tableViewer.compareWithHead",
+          "when": "resourceExtname =~ /^\\.(csv|tsv|tab|psv|parquet|pq|xlsx|xlsm|xlsb|xls|ods)$/ && resourceScheme == file",
+          "group": "3_compare@20"
+        },
+        {
+          "command": "tableViewer.compareWithFile",
+          "when": "resourceExtname =~ /^\\.(csv|tsv|tab|psv|parquet|pq|xlsx|xlsm|xlsb|xls|ods)$/",
+          "group": "3_compare@21"
         }
       ],
       "commandPalette": [
@@ -183,6 +209,17 @@
         {
           "command": "tableViewer.removeLicenseKey",
           "when": "tableViewer.proEnabled"
+        },
+        {
+          "command": "tableViewer.compareWithHead",
+          "when": "activeCustomEditorId =~ /^tableViewer\\./ || resourceExtname =~ /^\\.(csv|tsv|tab|psv|parquet|pq|xlsx|xlsm|xlsb|xls|ods)$/"
+        }
+      ],
+      "scm/resourceState/context": [
+        {
+          "command": "tableViewer.compareWithHead",
+          "when": "resourceExtname =~ /^\\.(csv|tsv|tab|psv|parquet|pq|xlsx|xlsm|xlsb|xls|ods)$/",
+          "group": "navigation@30"
         }
       ]
     },
@@ -212,6 +249,22 @@
           "default": 100000,
           "minimum": 1,
           "description": "Copy at most this many rows to the clipboard at once."
+        },
+        "tableViewer.autoReload": {
+          "type": "boolean",
+          "default": true,
+          "description": "Read the file again when it changes on disk (a script, git, an agent or another editor wrote it). Sort, filters and the sheet stay. The Reload button works either way."
+        },
+        "tableViewer.excelFormats": {
+          "type": "boolean",
+          "default": true,
+          "description": "Excel and ODS: show cells with the workbook's number format, as Excel does (25%, $1,234.50, 01/10/2026). Sort, filters and copy use the stored values. The toolbar switch changes it for one tab."
+        },
+        "tableViewer.maxCompareRows": {
+          "type": "number",
+          "default": 100000,
+          "minimum": 100,
+          "description": "Compare with Git HEAD and Compare with Another Table File: compare at most this many rows per table (per sheet for Excel)."
         },
         "tableViewer.askForRating": {
           "type": "boolean",

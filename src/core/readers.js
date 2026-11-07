@@ -423,12 +423,61 @@ function sheetTable(wb, sheetName, options) {
     columns.push({ name: h === null || h === undefined || h === '' ? XLSX.utils.encode_col(c) : String(h instanceof Date ? h.toISOString().slice(0, 10) : h), type: inferJsType(vals, n) });
     data.push(columns[c].type === 'int' || columns[c].type === 'float' ? packNumeric({ values: vals, nulls: null }) : { values: vals, nulls: null });
   }
+  addExcelDisplay(XLSX, ws, data, columns, n);
   const info = {
     format: 'excel', sheets: wb.SheetNames.slice(), activeSheet: name, totalRows: total,
     truncated: n < total,
     truncatedReason: n < total ? `Showing the first ${n.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} rows (limit tableViewer.maxRows).` : '',
   };
-  return { table: new Table(columns, data, n), info };
+  const table = new Table(columns, data, n);
+  if (o.excelFormats === false) table.formatted = false;
+  info.formattedCells = table.formattedCells;
+  return { table, info };
+}
+
+/**
+ * Excel number formats: SheetJS keeps the text Excel shows for each cell (cell.w, for example 25.0%,
+ * $1,234.50 or 01/10/2026). Where that text differs from the plain value, keep it in data[c].display so
+ * the grid can show the cell as Excel does, while sort, filters and copy keep using the value.
+ * A quick scan first, so sheets with only General cells pay nothing.
+ */
+const DEFAULT_SHORT_DATE = /^\d{1,2}\/\d{1,2}\/\d{2}( \d{1,2}:\d{2})?$/;
+
+function addExcelDisplay(XLSX, ws, data, columns, n) {
+  const dense = ws && ws['!data'];
+  if (!dense || !n) return;
+  let any = false;
+  for (let r = 0; r < dense.length && !any; r++) {
+    const row = dense[r];
+    if (!row) continue;
+    for (let c = 0; c < row.length; c++) {
+      const cell = row[c];
+      if (cell && (cell.t === 'n' || cell.t === 'd') && typeof cell.w === 'string' && cell.w !== String(cell.v)) { any = true; break; }
+    }
+  }
+  if (!any) return;
+  // Same row skipping as the raw read (blankrows: false), so the two arrays line up.
+  const shown = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: null, blankrows: false, UTC: true });
+  const { formatValue } = require('./table');
+  for (let c = 0; c < columns.length; c++) {
+    let display = null;
+    let count = 0;
+    for (let r = 0; r < n; r++) {
+      const w = shown[r + 1] ? shown[r + 1][c] : null;
+      if (w === null || w === undefined) continue;
+      const raw = r < data[c].values.length && !(data[c].nulls && data[c].nulls[r]) ? data[c].values[r] : null;
+      if (raw === null || raw === undefined || typeof raw === 'string') continue;
+      const plain = formatValue(raw, columns[c].type);
+      if (w === plain) continue;
+      // Excel's default short date (m/d/yy, built-in format 14) follows the reader's locale in Excel,
+      // so the US text would mislead. Keep ISO dates for it; explicit date formats are shown as written.
+      if (raw instanceof Date && DEFAULT_SHORT_DATE.test(w)) continue;
+      if (!display) display = new Array(n);
+      display[r] = String(w);
+      count++;
+    }
+    if (display) { data[c].display = display; data[c].displayCount = count; }
+  }
 }
 
 async function loadExcel(source, options, _onPreview, sheetName) {

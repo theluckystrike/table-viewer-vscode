@@ -154,7 +154,7 @@ test('the delimiter choice is remembered per file and applied on the next open',
     },
     window: { registerCustomEditorProvider: (id, provider) => { editors.push({ id, provider }); return { dispose() {} }; }, showWarningMessage: () => {}, showInformationMessage: () => {} },
     commands: { registerCommand: () => ({ dispose() {} }), executeCommand: async () => {} },
-    workspace: { getConfiguration: () => ({ get: (_k, d) => d }), fs: {} },
+    workspace: { getConfiguration: () => ({ get: (_k, d) => d }), fs: {}, registerTextDocumentContentProvider: () => ({ dispose() {} }) },
     env: { clipboard: { writeText: async x => { clipboard = x; } } },
   };
   const orig = Module._load;

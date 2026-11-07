@@ -43,7 +43,7 @@ const vscodeMock = {
     registerCommand: (id, fn) => { registered.commands[id] = fn; return { dispose() {} }; },
     executeCommand: async (...a) => { if (a[0] === 'setContext') calls.context.push(a.slice(1)); },
   },
-  workspace: { getConfiguration: () => ({ get: (_k, d) => d, inspect: () => ({}) }), fs: {} },
+  workspace: { getConfiguration: () => ({ get: (_k, d) => d, inspect: () => ({}) }), fs: {}, registerTextDocumentContentProvider: () => ({ dispose() {} }) },
   env: { clipboard: { writeText: async () => {} }, openExternal: async u => { calls.external.push(u.toString()); return true; } },
 };
 const origLoad = Module._load;

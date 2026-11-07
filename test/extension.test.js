@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 const root = path.join(__dirname, '..');
-const registered = { editors: [], commands: {} };
+const registered = { editors: [], commands: {}, content: {}, watchers: [] };
 let clipboard = '';
 const vscodeMock = {
   Uri: {
@@ -19,7 +19,17 @@ const vscodeMock = {
     showWarningMessage: () => {}, showInformationMessage: () => {},
   },
   commands: { registerCommand: (id, fn) => { registered.commands[id] = fn; return { dispose() {} }; }, executeCommand: async () => {} },
-  workspace: { getConfiguration: () => ({ get: (_k, d) => d }), fs: {} },
+  workspace: {
+    getConfiguration: () => ({ get: (_k, d) => d }), fs: {}, isTrusted: true,
+    registerTextDocumentContentProvider: (scheme, p) => { registered.content[scheme] = p; return { dispose() {} }; },
+    // Records the per-file watchers so a test can fire a change event.
+    createFileSystemWatcher: pattern => {
+      const w = { pattern, change: [], create: [], del: [], disposed: false };
+      registered.watchers.push(w);
+      return { onDidChange: f => w.change.push(f), onDidCreate: f => w.create.push(f), onDidDelete: f => w.del.push(f), dispose() { w.disposed = true; } };
+    },
+  },
+  RelativePattern: class { constructor(base, pattern) { this.base = base; this.pattern = pattern; } },
   env: { clipboard: { writeText: async t => { clipboard = t; } } },
 };
 const origLoad = Module._load;
@@ -175,4 +185,64 @@ test('an error is shown again after the tab is hidden and shown', async () => {
   p.onMsg({ type: 'ready' });
   assert.deepStrictEqual(p.sent.slice(from).map(m => m.type), ['init', 'error']);
   assert.match(p.sent[from + 1].message, /Unsupported/);
+});
+
+// RK1: auto-reload. The per-file watcher fires, the worker reads the file again, sort and filters stay.
+test('the table reloads when the file changes on disk and keeps its sort and filter', async t => {
+  if (!fs.existsSync(path.join(root, 'dist', 'worker.js'))) return t.skip('run the build first');
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tv-reload-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'live.csv');
+  fs.writeFileSync(file, 'id,name\n1,a\n2,b\n3,c\n');
+  const provider = registered.editors[0].provider;
+  const before = registered.watchers.length;
+  const p = fakePanel();
+  await provider.resolveCustomEditor(provider.openCustomDocument(vscodeMock.Uri.file(file)), p.panel);
+  const w = registered.watchers[before];
+  assert.ok(w, 'a watcher was created for the file');
+  assert.strictEqual(w.pattern.pattern, 'live.csv');
+  p.onMsg({ type: 'ready' });
+  await p.until(m => m.type === 'meta' && !m.loading && m.rowCount === 3);
+  p.onMsg({ type: 'sort', col: 0, dir: 'desc' });
+  await p.until(m => m.type === 'view');
+  p.onMsg({ type: 'filter', global: '', columns: { 1: '!b' } });
+  await p.until(m => m.type === 'view' && m.viewCount === 2);
+
+  // A script appends rows and moves the name column first. Matching is by column name.
+  fs.writeFileSync(file, 'name,id\na,1\nb,2\nc,3\nd,4\ne,5\n');
+  const from = p.sent.length;
+  w.change.forEach(f => f());
+  const meta = await p.until(m => m.type === 'meta' && m.reloaded, from);
+  assert.deepStrictEqual(meta.reloaded, { before: 3, after: 5, manual: false });
+  assert.deepStrictEqual(meta.sort, { col: 1, dir: 'desc' });
+  assert.deepStrictEqual(meta.filters, { global: '', columns: { 0: '!b' } });
+  assert.strictEqual(meta.viewCount, 4);
+  p.onMsg({ type: 'getRows', reqId: 9, start: 0, count: 10 });
+  const rows = await p.until(m => m.type === 'rows' && m.reqId === 9, from);
+  assert.deepStrictEqual(rows.rows.map(r => r.cells[1]), ['5', '4', '3', '1']);
+
+  // The Reload button works too, and says it was a manual reload.
+  const from2 = p.sent.length;
+  p.onMsg({ type: 'reload' });
+  const meta2 = await p.until(m => m.type === 'meta' && m.reloaded, from2);
+  assert.strictEqual(meta2.reloaded.manual, true);
+
+  // A deleted file keeps the last table and shows a notice, not a blank page.
+  w.del.forEach(f => f());
+  const note = await p.until(m => m.type === 'error' && m.transient && /deleted or moved/.test(m.message), from2);
+  assert.ok(note);
+  p.onDispose();
+  assert.strictEqual(w.disposed, true, 'the watcher is closed with the tab');
+});
+
+test('the Compare button and the compare commands are registered', () => {
+  const pkg = require('../package.json');
+  for (const id of ['tableViewer.compareWithHead', 'tableViewer.compareWithFile']) assert.ok(registered.commands[id], id);
+  assert.ok(registered.content['table-viewer-diff'], 'diff text provider');
+  const props = pkg.contributes.configuration.properties;
+  assert.strictEqual(props['tableViewer.autoReload'].default, true);
+  assert.strictEqual(props['tableViewer.excelFormats'].default, true);
+  assert.strictEqual(props['tableViewer.maxCompareRows'].default, 100000);
+  assert.ok(pkg.contributes.menus['scm/resourceState/context'].some(m => m.command === 'tableViewer.compareWithHead'));
 });

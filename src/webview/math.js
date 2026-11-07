@@ -205,4 +205,10 @@ function columnLefts(widths) {
   return left;
 }
 
-module.exports = { fitWidth, delimiterName, delimiterChoices, cellText, cellCaption, visibleColumns, columnLefts, statsRows, gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };
+/** The note for a table with no columns, so an empty file or sheet never looks like a blank page. */
+function emptyTableText(fileSize, format) {
+  if (fileSize === 0) return 'This file is empty (0 bytes), so there is no table to show.';
+  return format === 'excel' ? 'This sheet has no cells with data.' : 'This file has no rows or columns.';
+}
+
+module.exports = { emptyTableText, fitWidth, delimiterName, delimiterChoices, cellText, cellCaption, visibleColumns, columnLefts, statsRows, gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };

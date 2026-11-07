@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 (2026-11-07)
+
+- An empty file (0 bytes) or a sheet with no data now shows a note above the grid instead of an empty table.
+
 ## 0.3.0 (2026-11-07)
 
 - Excel number formats: cells show what Excel shows (25.0%, $1,234.50, 1,234,567, dates in the workbook's format). Sort, filters and copy keep the stored values, the cell panel shows both, and "Excel formats: on" in the toolbar switches a tab to the stored values. New setting `tableViewer.excelFormats`.

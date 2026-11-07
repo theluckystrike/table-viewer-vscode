@@ -764,6 +764,13 @@ function showBanner() {
     if (S.pro.enabled && !S.pro.licensed) parts.push('Table Viewer Pro loads larger files.');
   }
   banner.textContent = '';
+  const empty = !parts.length && !S.loading && !S.columns.length ? M.emptyTableText(S.info.fileSize, S.format) : '';
+  if (empty) {
+    banner.hidden = false;
+    banner.classList.remove('error');
+    banner.append(el('span', null, empty));
+    return;
+  }
   if (!parts.length) { banner.hidden = true; return; }
   banner.hidden = false;
   banner.classList.toggle('error', !!S.error);

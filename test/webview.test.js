@@ -105,3 +105,12 @@ test('only the columns in the horizontal viewport are drawn', () => {
   const mixed = [40, 360, 64, 200];
   assert.deepStrictEqual(M.visibleColumns(M.columnLefts(mixed), mixed, 50, 164, 64, 0), { c0: 1, c1: 1 });
 });
+
+test('an empty file or sheet gets a note, never a blank grid', () => {
+  assert.strictEqual(M.emptyTableText(0, 'excel'), 'This file is empty (0 bytes), so there is no table to show.');
+  assert.strictEqual(M.emptyTableText(0, 'csv'), 'This file is empty (0 bytes), so there is no table to show.');
+  assert.strictEqual(M.emptyTableText(4096, 'excel'), 'This sheet has no cells with data.');
+  assert.strictEqual(M.emptyTableText(12, 'csv'), 'This file has no rows or columns.');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'webview', 'main.js'), 'utf8');
+  assert.match(src, /M\.emptyTableText\(S\.info\.fileSize, S\.format\)/);
+});

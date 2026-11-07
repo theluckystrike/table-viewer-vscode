@@ -2,7 +2,7 @@
   "name": "table-viewer-vscode",
   "displayName": "CSV Viewer, Excel Viewer (XLSX) & Parquet Viewer",
   "description": "CSV viewer, Excel viewer and XLSX viewer that also opens Parquet: .csv, .tsv, .xlsx, .xls and .parquet files as a fast sortable, filterable table, handles 1M rows and needs no Python.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",

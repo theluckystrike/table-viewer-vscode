@@ -12,7 +12,7 @@ const { createRatingPrompt } = require('./rate');
 const { registerSupport, commandUris, showLinks } = require('./support');
 const { registerCompare } = require('./compare');
 
-let rating = { success() {} };
+let rating = { success() {}, failure() {} };
 
 const VIEW_TYPE = 'tableViewer.table';
 const TEXT_VIEW_TYPE = 'tableViewer.tableText';
@@ -125,7 +125,7 @@ class TableEditorProvider {
       if (webviewReady) { panel.webview.postMessage(msg); return; }
       if (!STATE_MESSAGES.has(msg.type) && !(msg.type === 'error' && !msg.transient)) queue.push(msg);
     };
-    const failHost = message => { fatal = { type: 'error', message }; toWebview(fatal); };
+    const failHost = message => { fatal = { type: 'error', message }; rating.failure(); toWebview(fatal); };
 
     const readSource = async () => {
       if (uri.scheme === 'file') return { path: uri.fsPath };
@@ -165,6 +165,7 @@ class TableEditorProvider {
         resourceLimits: { maxOldGenerationSizeMb: 4096 },
       });
       worker.on('message', msg => {
+        if (msg && msg.type === 'error' && !msg.transient) rating.failure();
         if (msg && msg.type === 'meta' && !counted) { counted = true; rating.success(); }
         if (msg && msg.type === 'copyResult') return onCopy(msg);
         if (msg && msg.type === 'exportResult') return onExport(msg);
@@ -400,7 +401,7 @@ async function compareSource(src) {
 }
 
 function activate(context) {
-  rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.table-viewer-vscode', section: 'tableViewer', message: (n) => `Table Viewer has opened ${n} files for you. A rating helps other people find it.` });
+  rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.table-viewer-vscode', section: 'tableViewer', name: 'XLSX Viewer' });
   registerSupport({ vscode, context, prefix: 'tableViewer', selfId: 'zovo.table-viewer-vscode' });
   const provider = new TableEditorProvider(context);
   registerCompare({

@@ -269,7 +269,7 @@
         "tableViewer.askForRating": {
           "type": "boolean",
           "default": true,
-          "description": "Ask one time for a Marketplace rating after you have used Table Viewer for a few days. You can answer \"Later\" or \"Don't ask again\". Nothing is sent anywhere."
+          "description": "Ask for a Marketplace rating after 3 files opened without an error on 2 different days. \"Later\" asks one more time after 7 days, \"No thanks\" never asks again. It never asks after an error or more than 2 times. Nothing is sent anywhere."
         },
         "tableViewer.showSupportLinks": {
           "type": "boolean",

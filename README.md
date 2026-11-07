@@ -111,7 +111,7 @@ Column types come from the Parquet schema, from Excel cell types, or for CSV fro
 | `tableViewer.autoReload` | true | Reload the table when the file changes on disk. |
 | `tableViewer.excelFormats` | true | Show Excel cells with the workbook's number formats. |
 | `tableViewer.maxCompareRows` | 100,000 | Rows per table (per sheet) in Compare with Git HEAD and Compare with Another Table File. |
-| `tableViewer.askForRating` | true | Ask one time for a Marketplace rating, after 5 files and 2 days. Turn it off with `false` |
+| `tableViewer.askForRating` | true | Ask for a Marketplace rating after 3 files opened without an error on 2 different days. "Later" asks one more time after 7 days, "No thanks" never again. It never asks after an error. Turn it off with `false`. |
 
 On our test machine (Apple Silicon, Node 22), the test suite loads a 1,000,000 row CSV (about 30 MB) in 0.5 s and a 1,000,000 row Parquet file in 0.15 s. It sorts either one by a number column in about 0.2 s and filters in under 0.1 s. Your numbers will differ with the column count and the file.
 

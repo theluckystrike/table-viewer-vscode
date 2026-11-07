@@ -1,71 +1,112 @@
 'use strict';
-// One-time Marketplace rating prompt. No telemetry and no network: the only outbound action is the
-// Marketplace page opened by the user's own click on "Rate it".
-// The decision logic is pure (decide, recordSuccess, recordAnswer) so it can be unit tested without VS Code.
+// Shared Zovo rating ask, v2 (factory/sprint/rating/rate.js, copied to src/rate.js in each extension).
+// No network and no telemetry. State lives only in context.globalState. The one outbound action is the
+// Marketplace review page, opened by the user's own click on "Rate it".
+//
+// Rules:
+// - Ask only after the user opened 3 files without an error, on at least 2 different days.
+// - "Rate it" opens the review page and ends it. "No thanks" ends it.
+// - "Later" (or closing the message) asks again one time, 7 days later at the earliest.
+// - At most 2 asks in all, at most 1 per window session.
+// - Never after an error: no ask in a session where a file failed to open, and none for 24 hours after a failure.
+// - The setting <section>.askForRating = false turns it off.
+// The rules are pure functions (recordSuccess, recordFailure, decide, recordAnswer) for unit tests.
 
-const STATE_KEY = 'zovo.rating.v1';
+const STATE_KEY = 'zovo.rating.v2';
+const OLD_KEY = 'zovo.rating.v1';
 const DAY_MS = 24 * 60 * 60 * 1000;
-const FIRST_ASK = 5; // successes before the first ask
-const LATER_STEP = 20; // more successes before asking again after "Later"
-const MAX_LATER = 2; // asks after the first one, at most (3 in all)
-const MIN_DAYS = 2; // days since first use before the first ask
+const MIN_FILES = 3; // files opened without an error before the first ask
+const MIN_DAYS = 2; // different calendar days with a success before the first ask
+const LATER_DAYS = 7; // "Later" waits this long
+const MAX_ASKS = 2; // asks in all
+const ERROR_QUIET_MS = DAY_MS; // no ask for this long after a failure
 const RATE = 'Rate it';
 const LATER = 'Later';
-const NEVER = "Don't ask again";
+const NEVER = 'No thanks';
+// Fake clock for manual and VS Code tests: shifts "now" by this many days. Unset in normal use.
+const CLOCK_ENV = 'ZOVO_RATING_CLOCK_OFFSET_DAYS';
 
 function freshState() {
-  return { count: 0, firstUse: 0, firstSession: '', nextAt: FIRST_ASK, asks: 0, done: false };
+  return { count: 0, days: [], asks: 0, nextAskAt: 0, lastErrorAt: 0, done: false };
 }
+
+const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : d);
+const isDay = (d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d);
 
 function normalize(raw) {
   const s = freshState();
   if (!raw || typeof raw !== 'object') return s;
-  const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : d);
   s.count = num(raw.count, 0);
-  s.firstUse = num(raw.firstUse, 0);
-  s.firstSession = typeof raw.firstSession === 'string' ? raw.firstSession : '';
-  s.nextAt = Math.max(FIRST_ASK, num(raw.nextAt, FIRST_ASK));
-  s.asks = num(raw.asks, 0);
-  s.done = raw.done === true;
+  s.days = Array.isArray(raw.days) ? [...new Set(raw.days.filter(isDay))].slice(0, MIN_DAYS) : [];
+  s.asks = Math.min(MAX_ASKS, num(raw.asks, 0));
+  s.nextAskAt = num(raw.nextAskAt, 0);
+  s.lastErrorAt = num(raw.lastErrorAt, 0);
+  s.done = raw.done === true || s.asks >= MAX_ASKS;
   return s;
 }
 
-/** Count one success. Returns a new state; the first success stores the date and the session. */
-function recordSuccess(state, now, sessionId) {
+/** Local calendar day of a timestamp, as YYYY-MM-DD. */
+function dayKey(now) {
+  const d = new Date(now);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** State of the v1 prompt (5 files and 2 days, "Don't ask again"): keep its answers and asks. */
+function fromV1(old) {
+  const s = freshState();
+  if (!old || typeof old !== 'object') return s;
+  s.count = num(old.count, 0);
+  const first = num(old.firstUse, 0);
+  if (first) s.days = [dayKey(first)];
+  s.asks = Math.min(MAX_ASKS, num(old.asks, 0));
+  s.done = old.done === true || s.asks >= MAX_ASKS;
+  return s;
+}
+
+/** A file opened without an error. */
+function recordSuccess(state, now) {
   const s = normalize(state);
   s.count += 1;
-  if (!s.firstUse) { s.firstUse = now; s.firstSession = String(sessionId || ''); }
+  const k = dayKey(now);
+  if (!s.days.includes(k) && s.days.length < MIN_DAYS) s.days.push(k);
+  return s;
+}
+
+/** A file failed to open. */
+function recordFailure(state, now) {
+  const s = normalize(state);
+  s.lastErrorAt = Math.max(s.lastErrorAt, num(now, 0));
   return s;
 }
 
 /**
- * Should the prompt show now?
- * env: { now, sessionId, enabled, focused, trusted, remote, askedThisSession }
+ * Should the ask show now? Call it right after recordSuccess.
+ * env: { now, enabled, focused, askedThisSession, errorThisSession }
  */
 function decide(state, env) {
   const s = normalize(state);
   if (s.done || !env.enabled) return false;
-  if (env.askedThisSession || !env.focused || !env.trusted || env.remote) return false;
-  if (!env.sessionId || !s.firstUse) return false;
-  if (s.firstSession === String(env.sessionId)) return false; // never in the first session
-  if (env.now - s.firstUse < MIN_DAYS * DAY_MS) return false;
-  if (s.asks > MAX_LATER) return false;
-  return s.count >= s.nextAt;
+  if (env.askedThisSession || env.errorThisSession || env.focused === false) return false;
+  if (s.asks >= MAX_ASKS) return false;
+  if (s.count < MIN_FILES || s.days.length < MIN_DAYS) return false;
+  if (s.lastErrorAt && env.now - s.lastErrorAt < ERROR_QUIET_MS) return false;
+  return env.now >= s.nextAskAt;
 }
 
 /**
- * Apply an answer. 'shown' is written before the message opens: it uses up one ask and moves the next
- * ask LATER_STEP successes ahead, so "Later", closing the message, or quitting VS Code with it open all
- * wait for 20 more successes. "Rate it" and "Don't ask again" end it. After the last allowed ask, it ends.
+ * Apply an answer. 'shown' is saved before the message opens, so an ask is used up even if VS Code
+ * quits with the message open. "Rate it" and "No thanks" end it; "Later" or no answer wait 7 days.
  */
-function recordAnswer(state, answer) {
+function recordAnswer(state, answer, now) {
   const s = normalize(state);
-  if (answer === RATE || answer === NEVER) s.done = true;
-  else if (answer === 'shown') {
+  if (answer === 'shown') {
     s.asks += 1;
-    s.nextAt = s.count + LATER_STEP;
-    if (s.asks > MAX_LATER) s.done = true;
+    s.nextAskAt = num(now, 0) + LATER_DAYS * DAY_MS;
+  } else if (answer === RATE || answer === NEVER) {
+    s.done = true;
   }
+  if (s.asks >= MAX_ASKS) s.done = true;
   return s;
 }
 
@@ -73,48 +114,80 @@ function reviewUrl(extensionId) {
   return `https://marketplace.visualstudio.com/items?itemName=${encodeURIComponent(extensionId)}&ssr=false#review-details`;
 }
 
+function messageFor(name) {
+  return `Is ${name} useful? A rating helps others find it.`;
+}
+
+/** Days to add to the clock, from ZOVO_RATING_CLOCK_OFFSET_DAYS (0 to 3650), else 0. */
+function clockOffsetMs(envVars) {
+  const v = Number(envVars && envVars[CLOCK_ENV]);
+  return Number.isFinite(v) && v > 0 && v <= 3650 ? v * DAY_MS : 0;
+}
+
 /**
- * opts: { vscode, context, extensionId, section, message(count) }
- * Returns { success() }: call it once per successful use of the main feature.
+ * opts: { vscode, context, extensionId, section, name, now? }
+ * Returns { success(), failure() }. Call success() once per file that opened without an error,
+ * failure() when a file could not be opened. Both never throw.
  */
 function createRatingPrompt(opts) {
-  const { vscode, context, extensionId, section, message } = opts;
-  let askedThisSession = false;
+  const { vscode, context, extensionId, section, name } = opts;
+  const offset = clockOffsetMs(typeof process !== 'undefined' ? process.env : null);
+  const now = typeof opts.now === 'function' ? opts.now : () => Date.now() + offset;
   const store = context && context.globalState;
+  const usable = !!(store && typeof store.get === 'function' && typeof store.update === 'function');
+  let askedThisSession = false;
+  let errorThisSession = false;
+  let busy = false;
   const safe = (fn, d) => { try { return fn(); } catch { return d; } };
 
+  function load() {
+    const cur = store.get(STATE_KEY);
+    if (cur && typeof cur === 'object') return normalize(cur);
+    return fromV1(store.get(OLD_KEY));
+  }
+
   const env = () => ({
-    now: Date.now(),
-    sessionId: safe(() => vscode.env.sessionId, ''),
+    now: now(),
     enabled: safe(() => vscode.workspace.getConfiguration(section).get('askForRating', true) !== false, false),
-    focused: safe(() => vscode.window.state.focused === true, false),
-    trusted: safe(() => vscode.workspace.isTrusted !== false, false),
-    remote: safe(() => !!vscode.env.remoteName, true),
+    focused: safe(() => vscode.window.state.focused !== false, true),
     askedThisSession,
+    errorThisSession,
   });
 
-  async function ask(s) {
+  async function ask(s, e) {
     askedThisSession = true;
-    let st = recordAnswer(s, 'shown');
+    let st = recordAnswer(s, 'shown', e.now);
     await store.update(STATE_KEY, st);
-    const pick = await vscode.window.showInformationMessage(message(st.count), RATE, LATER, NEVER);
-    st = recordAnswer(normalize(store.get(STATE_KEY)), pick);
+    const pick = await vscode.window.showInformationMessage(messageFor(name), RATE, LATER, NEVER);
+    st = recordAnswer(load(), pick, now());
     await store.update(STATE_KEY, st);
     if (pick === RATE) await vscode.env.openExternal(vscode.Uri.parse(reviewUrl(extensionId)));
   }
 
   async function success() {
-    if (!store || typeof store.get !== 'function' || typeof store.update !== 'function') return;
+    if (!usable) return;
     const e = env();
-    const s = recordSuccess(store.get(STATE_KEY), e.now, e.sessionId);
+    const s = recordSuccess(load(), e.now);
     await store.update(STATE_KEY, s);
-    if (decide(s, e)) await ask(s);
+    if (busy || !decide(s, e)) return;
+    busy = true;
+    try { await ask(s, e); } finally { busy = false; }
   }
 
-  return { success: () => success().catch(() => {}) };
+  async function failure() {
+    errorThisSession = true;
+    if (!usable) return;
+    await store.update(STATE_KEY, recordFailure(load(), now()));
+  }
+
+  return {
+    success: () => success().catch(() => {}),
+    failure: () => failure().catch(() => {}),
+  };
 }
 
 module.exports = {
-  createRatingPrompt, decide, recordSuccess, recordAnswer, normalize, freshState, reviewUrl,
-  STATE_KEY, DAY_MS, FIRST_ASK, LATER_STEP, MAX_LATER, MIN_DAYS, RATE, LATER, NEVER,
+  createRatingPrompt, decide, recordSuccess, recordFailure, recordAnswer, normalize, freshState, fromV1,
+  dayKey, reviewUrl, messageFor, clockOffsetMs,
+  STATE_KEY, OLD_KEY, DAY_MS, MIN_FILES, MIN_DAYS, LATER_DAYS, MAX_ASKS, ERROR_QUIET_MS, RATE, LATER, NEVER, CLOCK_ENV,
 };

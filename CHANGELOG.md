@@ -4,6 +4,7 @@
 
 - The README and the Marketplace description now start with what was already true: it is free, with no paywall, no ads, no license banner, no evaluation popup and no account.
 - An Excel sheet whose first row has no text (only numbers, dates or true/false) no longer loses that row as column names. The row shows as data, and the columns are named A, B, C as in Excel. A sheet holding one date showed "0 rows" before.
+- The rating question now comes after 3 files that opened without an error on 2 different days, and never after an error. "Later" asks one more time after 7 days, "No thanks" ends it, and it never asks more than 2 times. `tableViewer.askForRating: false` turns it off.
 
 ## 0.3.2 (2026-11-08)
 

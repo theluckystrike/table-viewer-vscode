@@ -42,6 +42,8 @@ const S = {
   cellData: null,
   cellPretty: true,
   formatted: true, // Excel number formats shown (worker state, sent in meta and view)
+  showFormulas: false, // Excel: formula text instead of results (worker state)
+  freeze: 0, // number of frozen columns on the left (0 or 1)
 };
 
 function el(tag, cls, text) {
@@ -71,6 +73,14 @@ const btnCsv = el('button', 'btn', 'Copy CSV');
 btnCsv.title = 'Copy the selection as CSV with a header row (no selection: the whole view)';
 const btnJson = el('button', 'btn', 'Copy JSON');
 btnJson.title = 'Copy the selection as a JSON array of objects (no selection: the whole view)';
+const btnMd = el('button', 'btn', 'Copy Markdown');
+btnMd.title = 'Copy the selection as a Markdown table, as shown on screen, for a README, an issue or an AI chat (no selection: the whole view)';
+const btnFreeze = el('button', 'btn toggle', 'Freeze first column');
+btnFreeze.title = 'Keep the first column in view while you scroll sideways. The header row always stays in view.';
+btnFreeze.setAttribute('aria-pressed', 'false');
+const btnFormulas = el('button', 'btn toggle', 'Formulas: off');
+btnFormulas.title = 'On: cells with a formula show the formula (=SUM(B2:B9)) instead of the result, like Ctrl+` in Excel. The cell panel always shows both.';
+btnFormulas.hidden = true;
 const spacer = el('span', 'spacer');
 const btnReload = el('button', 'btn', 'Reload');
 btnReload.title = 'Read the file again. It also reloads by itself when the file changes on disk (tableViewer.autoReload). Sort and filters stay.';
@@ -83,12 +93,12 @@ btnFormats.hidden = true;
 const proBadge = el('button', 'pro-badge', 'Pro');
 proBadge.hidden = true;
 const btnQuery = el('button', 'btn', 'SQL');
-btnQuery.title = 'Filter rows with a SQL WHERE condition';
+btnQuery.title = 'Filter rows with a SQL WHERE condition, for example: price > 20 AND city LIKE \'Lon%\'';
 const btnStats = el('button', 'btn', 'Stats');
 btnStats.title = 'Count, nulls, distinct, min, max, mean and top values for each column of the rows in view';
 const btnExport = el('button', 'btn', 'Export');
 btnExport.title = 'Save the rows in view (filtered and sorted) as CSV, TSV, JSON or JSON Lines';
-btnQuery.hidden = btnStats.hidden = btnExport.hidden = true;
+// Free since 0.4 (no paywall): the SQL filter, column stats and export are always shown.
 // CSV/TSV only: pick the delimiter and say whether the first line is a header. The file is read again.
 const csvBox = el('span', 'csvopts');
 csvBox.hidden = true;
@@ -103,8 +113,13 @@ headerChk.type = 'checkbox';
 headerChk.checked = true;
 headerChk.title = 'Off: the first line is data and the columns are named column_1, column_2, ...';
 headerLabel.append(headerChk, document.createTextNode(' Header row'));
-csvBox.append(delimLabel, headerLabel);
-toolbar.append(title, fmtBadge, stats, spacer, csvBox, sheetSel, btnFormats, search, btnQuery, btnSchema, btnStats, btnCsv, btnJson, btnExport, btnCompare, btnReload, proBadge);
+const encLabel = el('label', 'csvopt', 'Encoding ');
+const encSel = el('select', 'sheet');
+encSel.setAttribute('aria-label', 'Encoding');
+encSel.title = 'How the bytes of the file are read as text. Auto reads the byte order mark, then tries UTF-8, Japanese, Chinese, Korean, Cyrillic and Western code pages.';
+encLabel.append(encSel);
+csvBox.append(delimLabel, encLabel, headerLabel);
+toolbar.append(title, fmtBadge, stats, spacer, csvBox, sheetSel, btnFormats, btnFormulas, search, btnQuery, btnSchema, btnStats, btnFreeze, btnCsv, btnJson, btnMd, btnExport, btnCompare, btnReload, proBadge);
 
 const queryBar = el('div', 'querybar');
 queryBar.hidden = true;
@@ -153,7 +168,9 @@ btnCloseCell.title = 'Close the panel (Esc)';
 cellHead.append(cellCap, cellSpacer, btnPretty, btnCopyCell, btnCloseCell);
 const cellValue = el('pre', 'cellvalue');
 cellValue.tabIndex = 0;
-cellPanel.append(cellHead, cellValue);
+const cellFormula = el('div', 'cellformula');
+cellFormula.hidden = true;
+cellPanel.append(cellHead, cellFormula, cellValue);
 
 const status = el('div', 'status');
 const statusLeft = el('span', 'left');
@@ -176,9 +193,11 @@ function buildHeader() {
   corner.addEventListener('mousedown', e => { e.preventDefault(); selectAll(); });
   head.append(corner);
   filterRow.append(el('div', 'cell gutter'));
+  const lefts = M.columnLefts(S.widths);
   S.columns.forEach((col, c) => {
-    const h = el('div', 'cell hcell');
+    const h = el('div', 'cell hcell' + (c < S.freeze ? ' frozen' : ''));
     h.style.width = S.widths[c] + 'px';
+    if (c < S.freeze) h.style.left = (GUTTER_W + lefts[c]) + 'px';
     h.dataset.col = String(c);
     const name = el('span', 'hname', col.name);
     const type = el('span', 'htype t-' + col.type, col.type);
@@ -199,8 +218,9 @@ function buildHeader() {
       vscode.postMessage(next ? { type: 'sort', col: c, dir: next.dir } : { type: 'sort', col: null, dir: null });
     });
     head.append(h);
-    const fcell = el('div', 'cell fcell');
+    const fcell = el('div', 'cell fcell' + (c < S.freeze ? ' frozen' : ''));
     fcell.style.width = S.widths[c] + 'px';
+    if (c < S.freeze) fcell.style.left = (GUTTER_W + lefts[c]) + 'px';
     const inp = el('input', 'finput');
     inp.placeholder = NUMERIC.has(col.type) ? '>10, 5..9, =3' : 'contains';
     inp.title = NUMERIC.has(col.type)
@@ -328,9 +348,15 @@ function makeRowEl() {
   return r;
 }
 
-function syncRowCells(r, c0, c1) {
-  const want = Math.max(0, c1 - c0 + 1);
-  while (r._cells.length < want) { const d = el('div', 'cell'); r.append(d); r._cells.push(d); }
+// Row layout: gutter, frozen cells, spacer for the hidden columns, visible cells.
+function syncRowCells(r, fz, c0, c1) {
+  if (r._fz !== fz) { for (const d of r._cells) d.remove(); r._cells = []; r._fz = fz; }
+  const want = fz + Math.max(0, c1 - c0 + 1);
+  while (r._cells.length < want) {
+    const d = el('div', 'cell');
+    if (r._cells.length < fz) r.insertBefore(d, r._spacer); else r.append(d);
+    r._cells.push(d);
+  }
   while (r._cells.length > want) r._cells.pop().remove();
 }
 
@@ -340,7 +366,11 @@ function render() {
   const { first, last, shift } = visibleRange();
   const n = Math.max(0, last - first + 1);
   const lefts = M.columnLefts(S.widths);
-  const { c0, c1 } = M.visibleColumns(lefts, S.widths, grid.scrollLeft, grid.clientWidth, GUTTER_W);
+  const vis = M.visibleColumns(lefts, S.widths, grid.scrollLeft, grid.clientWidth, GUTTER_W);
+  // Frozen columns are always drawn first (sticky), then the visible columns after them.
+  const fz = Math.min(S.freeze, S.columns.length);
+  const c0 = Math.max(vis.c0, fz), c1 = vis.c1;
+  const frozenW = fz ? lefts[fz - 1] + S.widths[fz - 1] : 0;
   while (rowPool.length < n) { const r = makeRowEl(); rowPool.push(r); body.append(r); }
   body.style.transform = `translateY(${-shift}px)`;
   const sel = currentSel();
@@ -355,19 +385,21 @@ function render() {
     const row = page ? page[vr % PAGE] : null;
     r._g.textContent = row ? fmtN(row.id + 1) : fmtN(vr + 1);
     r._g.classList.toggle('selrow', !!sel && vr >= sel.r0 && vr <= sel.r1);
-    syncRowCells(r, c0, c1);
-    r._spacer.style.width = (c1 >= c0 ? lefts[c0] : 0) + 'px';
+    syncRowCells(r, fz, c0, c1);
+    r._spacer.style.width = Math.max(0, (c1 >= c0 ? lefts[c0] : frozenW) - frozenW) + 'px';
     for (let j = 0; j < r._cells.length; j++) {
-      const c = c0 + j;
+      const c = j < fz ? j : c0 + j - fz;
       const cell = r._cells[j];
       cell._c = c;
       cell.style.width = S.widths[c] + 'px';
       const v = row ? row.cells[c] : undefined;
-      if (!row) { cell.textContent = ''; cell.className = 'cell pending' + (NUMERIC.has(S.columns[c].type) ? ' num' : ''); }
+      const fr = j < fz ? ' frozen' : '';
+      if (!row) { cell.textContent = ''; cell.className = 'cell pending' + fr + (NUMERIC.has(S.columns[c].type) ? ' num' : ''); }
       else {
         cell.textContent = v === null ? '' : v;
-        cell.className = 'cell' + (NUMERIC.has(S.columns[c].type) ? ' num' : '') + (v === null ? ' null' : '');
+        cell.className = 'cell' + fr + (NUMERIC.has(S.columns[c].type) && !(S.showFormulas && v && v[0] === '=') ? ' num' : '') + (v === null ? ' null' : '');
       }
+      if (fr) cell.style.left = (GUTTER_W + lefts[c]) + 'px';
       if (M.inSel(sel, vr, c)) cell.classList.add('sel');
       if (S.focus && S.focus.r === vr && S.focus.c === c) cell.classList.add('focus');
     }
@@ -393,7 +425,7 @@ function request(first, last) {
 let saveTimer = null;
 function saveView() {
   if (!S.columns.length) return;
-  vscode.setState(M.viewState(grid.scrollTop, grid.scrollLeft, S.widths, S.info.activeSheet));
+  vscode.setState({ ...M.viewState(grid.scrollTop, grid.scrollLeft, S.widths, S.info.activeSheet), freeze: S.freeze });
 }
 grid.addEventListener('scroll', () => {
   schedule();
@@ -487,6 +519,7 @@ function shownCellText() {
 function renderCell() {
   const d = S.cellData;
   if (!d) {
+    cellFormula.hidden = true;
     cellCap.textContent = 'Click a cell to see its full value.';
     cellValue.textContent = '';
     btnPretty.hidden = true;
@@ -496,6 +529,8 @@ function renderCell() {
   const col = S.columns[d.col];
   const view = M.cellText(d.value, col ? col.type : '', S.cellPretty);
   cellCap.textContent = M.cellCaption(d.id + 1, col, d.length, d.truncated) + (view.json ? ' · JSON' : '') + (d.raw !== undefined && d.raw !== null ? ` · stored value ${d.raw}` : '');
+  cellFormula.hidden = !d.formula;
+  cellFormula.textContent = d.formula ? `Formula: ${d.formula}` : '';
   cellValue.textContent = d.value === null ? '' : view.text;
   cellValue.classList.toggle('null', d.value === null);
   btnPretty.hidden = !view.json;
@@ -527,9 +562,12 @@ function ensureVisible(r) {
 }
 
 function ensureColVisible(c) {
+  if (c < S.freeze) return;
   const lefts = M.columnLefts(S.widths);
+  const fz = Math.min(S.freeze, S.columns.length);
+  const frozenW = fz ? lefts[fz - 1] + S.widths[fz - 1] : 0;
   const viewW = grid.clientWidth - GUTTER_W;
-  if (lefts[c] < grid.scrollLeft) grid.scrollLeft = lefts[c];
+  if (lefts[c] - frozenW < grid.scrollLeft) grid.scrollLeft = Math.max(0, lefts[c] - frozenW);
   else if (lefts[c] + S.widths[c] > grid.scrollLeft + viewW) grid.scrollLeft = lefts[c] + S.widths[c] - viewW;
 }
 
@@ -565,6 +603,26 @@ function copy(format, header = true) {
 }
 btnCsv.addEventListener('click', () => copy('csv'));
 btnJson.addEventListener('click', () => copy('json'));
+btnMd.addEventListener('click', () => copy('md'));
+btnFreeze.addEventListener('click', () => { setFreeze(S.freeze ? 0 : 1); saveView(); });
+btnFormulas.addEventListener('click', () => { flash('Switching…', true); vscode.postMessage({ type: 'formulas', on: !S.showFormulas }); });
+
+function setFreeze(n) {
+  S.freeze = n ? 1 : 0;
+  btnFreeze.classList.toggle('on', !!S.freeze);
+  btnFreeze.setAttribute('aria-pressed', S.freeze ? 'true' : 'false');
+  for (const r of rowPool) { for (const d of r._cells) d.remove(); r._cells = []; r._fz = -1; }
+  buildHeader();
+  applyWidths();
+}
+
+function renderFormulas() {
+  const n = (S.info && S.info.formulaCells) || 0;
+  btnFormulas.hidden = !(S.format === 'excel' && n > 0);
+  btnFormulas.setAttribute('aria-pressed', S.showFormulas ? 'true' : 'false');
+  btnFormulas.classList.toggle('on', S.showFormulas);
+  btnFormulas.textContent = S.showFormulas ? 'Formulas: on' : 'Formulas: off';
+}
 btnSchema.addEventListener('click', () => { S.schemaOpen = !S.schemaOpen; renderSchema(); layout(); });
 btnReload.addEventListener('click', () => { flash('Reading the file again…', true); vscode.postMessage({ type: 'reload' }); });
 btnCompare.addEventListener('click', () => vscode.postMessage({ type: 'compare' }));
@@ -588,8 +646,6 @@ function renderPro() {
   proBadge.title = p.licensed
     ? 'Table Viewer Pro is active' + (p.expires ? ` until ${p.expires}` : '')
     : (p.note ? p.note + ' ' : '') + 'Table Viewer Pro: bigger files, SQL filter, export, column stats. Click for details.';
-  btnQuery.hidden = btnStats.hidden = btnExport.hidden = !proOn();
-  if (!proOn()) { S.queryOpen = false; S.statsOpen = false; }
   queryBar.hidden = !S.queryOpen;
   btnQuery.classList.toggle('on', S.queryOpen || !!S.filters.query);
   statsPanel.hidden = !S.statsOpen;
@@ -662,16 +718,21 @@ function renderCsvOptions() {
   delimSel.textContent = '';
   for (const ch of choices) { const o = el('option', null, ch.label); o.value = ch.value; delimSel.append(o); }
   delimSel.value = selected;
+  const enc = M.encodingChoices(S.info);
+  encSel.textContent = '';
+  for (const ch of enc.choices) { const o = el('option', null, ch.label); o.value = ch.value; encSel.append(o); }
+  encSel.value = enc.selected;
   headerChk.checked = S.info.header !== false;
-  delimSel.disabled = headerChk.disabled = S.loading;
+  delimSel.disabled = headerChk.disabled = encSel.disabled = S.loading;
 }
 function sendCsvOptions() {
   if (S.loading) return flash('Still loading. Change the delimiter when all rows are in.');
   flash('Reading the file again…', true);
-  delimSel.disabled = headerChk.disabled = true;
-  vscode.postMessage({ type: 'csvOptions', delimiter: delimSel.value, header: headerChk.checked });
+  delimSel.disabled = headerChk.disabled = encSel.disabled = true;
+  vscode.postMessage({ type: 'csvOptions', delimiter: delimSel.value, header: headerChk.checked, encoding: encSel.value });
 }
 delimSel.addEventListener('change', sendCsvOptions);
+encSel.addEventListener('change', sendCsvOptions);
 headerChk.addEventListener('change', sendCsvOptions);
 
 // ---------- schema panel ----------
@@ -753,7 +814,7 @@ function updateStatus() {
   statusLeft.title = statusLeft.textContent; // the hint can be cut in a narrow tab
   statusRight.textContent = S.timing;
   search.disabled = S.loading;
-  btnCsv.disabled = btnJson.disabled = S.loading && !S.rowCount;
+  btnCsv.disabled = btnJson.disabled = btnMd.disabled = S.loading && !S.rowCount;
 }
 
 function showBanner() {
@@ -804,6 +865,7 @@ window.addEventListener('message', ev => {
       S.rowCount = msg.viewCount;
       S.totalRows = msg.rowCount;
       if (typeof msg.formatted === 'boolean') S.formatted = msg.formatted;
+      if (typeof msg.showFormulas === 'boolean') S.showFormulas = msg.showFormulas;
       S.cache.clear();
       S.pending.clear();
       S.error = '';
@@ -844,6 +906,7 @@ window.addEventListener('message', ev => {
         flash(b === a ? `${what} (${fmtN(a)} rows)` : `${what} (${fmtN(b)} → ${fmtN(a)} rows)`);
       }
       renderFormats();
+      renderFormulas();
       showBanner();
       renderCsvOptions();
       if (S.cellOpen) { if (!S.focus || S.focus.r >= S.rowCount || S.focus.c >= S.columns.length) { S.anchor = S.focus = null; S.cellData = null; renderCell(); } else requestCell(); }
@@ -853,7 +916,9 @@ window.addEventListener('message', ev => {
       if (!S.loading) requestStats();
       if (savedView && !S.loading && S.columns.length) {
         const r = M.restoreView(savedView, S.columns.length, S.info.activeSheet);
+        const fz = savedView.freeze === 1;
         savedView = null;
+        if (fz && !S.freeze) setFreeze(1);
         if (r) {
           if (r.widths) { S.widths = r.widths; S.autoSized = true; buildHeader(); applyWidths(); }
           grid.scrollTop = r.scrollTop;
@@ -882,6 +947,12 @@ window.addEventListener('message', ev => {
       S.version = msg.version;
       S.rowCount = msg.viewCount;
       if (typeof msg.formatted === 'boolean') { S.formatted = msg.formatted; renderFormats(); }
+      if (typeof msg.showFormulas === 'boolean') {
+        // Formula text is usually wider than the result: fit the columns again to what is shown now.
+        if (msg.showFormulas !== S.showFormulas) S.autoSized = false;
+        S.showFormulas = msg.showFormulas;
+        renderFormulas();
+      }
       S.sort = msg.sort || null;
       S.cache.clear();
       S.pending.clear();
@@ -895,7 +966,7 @@ window.addEventListener('message', ev => {
       layout();
       break;
     case 'copied':
-      flash(`Copied ${fmtN(msg.rows)} rows as ${String(msg.format).toUpperCase()}` + (msg.truncated ? ' (cut at the copy limit)' : ''));
+      flash(`Copied ${fmtN(msg.rows)} rows as ${msg.format === 'md' ? 'a Markdown table' : String(msg.format).toUpperCase()}` + (msg.truncated ? ' (cut at the copy limit)' : ''));
       break;
     case 'pro':
       S.pro = msg.enabled ? { enabled: true, licensed: !!msg.licensed, expires: msg.expires || null, note: msg.note || '' } : { enabled: false };
@@ -915,14 +986,14 @@ window.addEventListener('message', ev => {
     case 'cell':
       if (msg.reqId !== S.cellReq || !S.cellOpen) break;
       if (msg.version !== S.version || msg.missing) { S.cellData = null; renderCell(); break; }
-      S.cellData = { id: msg.id, col: msg.col, value: msg.value, length: msg.length, truncated: !!msg.truncated, raw: typeof msg.raw === 'string' ? msg.raw : undefined };
+      S.cellData = { id: msg.id, col: msg.col, value: msg.value, length: msg.length, truncated: !!msg.truncated, raw: typeof msg.raw === 'string' ? msg.raw : undefined, formula: typeof msg.formula === 'string' ? msg.formula : undefined };
       renderCell();
       break;
     case 'copiedText':
       flash(`Copied the value (${fmtN(msg.chars)} characters)`);
       break;
     case 'requestCopy':
-      copy(msg.format === 'json' ? 'json' : 'csv');
+      copy(msg.format === 'json' || msg.format === 'md' ? msg.format : 'csv');
       break;
     case 'error':
       if (msg.code === 'QUERY') {

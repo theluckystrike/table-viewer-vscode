@@ -34,14 +34,9 @@ function fmtMB(n) { return `${(n / MB).toFixed(n < 10 * MB ? 1 : 0)} MB`; }
 
 // ---------- CSV / TSV ----------
 
-function pickEncoding(head) {
-  if (head.length >= 2 && head[0] === 0xff && head[1] === 0xfe) return 'utf-16le';
-  if (head.length >= 2 && head[0] === 0xfe && head[1] === 0xff) return 'utf-16be';
-  // Excel's "CSV" on Windows (Western locales) writes Windows-1252, not UTF-8. If the first chunk is not valid
-  // UTF-8, read it as Windows-1252 so that é, € and smart quotes show instead of the replacement character.
-  try { new TextDecoder('utf-8', { fatal: true }).decode(head, { stream: true }); } catch { return 'windows-1252'; }
-  return 'utf-8';
-}
+const { detectEncoding, CSV_ENCODINGS } = require('./encoding');
+/** Encoding of a CSV/TSV file from its first bytes (BOM, UTF-8, East Asian and Cyrillic code pages, Windows-1252). */
+function pickEncoding(head) { return detectEncoding(head); }
 
 async function* byteChunks(source, maxBytes) {
   if (source.bytes) {
@@ -80,7 +75,8 @@ async function loadCsv(source, options, onPreview, format) {
   let previewSent = false;
   let rowsTruncated = false;
 
-  const info = { format, fileSize: size, delimiter: null, delimiterAuto: !forced, header: hasHeader, truncated: false, truncatedReason: '', totalRows: null };
+  const forcedEnc = CSV_ENCODINGS.includes(o.encoding) ? o.encoding : null;
+  const info = { format, fileSize: size, delimiter: null, delimiterAuto: !forced, header: hasHeader, truncated: false, truncatedReason: '', totalRows: null, encoding: null, encodingAuto: !forcedEnc };
 
   const onRow = (fields) => {
     if (header === null) {
@@ -111,8 +107,9 @@ async function loadCsv(source, options, onPreview, format) {
   for await (const chunk of byteChunks(source, maxBytes)) {
     let text;
     if (!decoder) {
-      const enc = pickEncoding(chunk);
-      decoder = new TextDecoder(enc, { fatal: false, ignoreBOM: false });
+      let enc = forcedEnc || pickEncoding(chunk);
+      try { decoder = new TextDecoder(enc, { fatal: false, ignoreBOM: false }); } catch { enc = 'utf-8'; decoder = new TextDecoder(enc); }
+      info.encoding = enc;
     }
     text = decoder.decode(chunk, { stream: true });
     if (!parser) {
@@ -441,6 +438,7 @@ function sheetTable(wb, sheetName, options) {
     data.push(columns[c].type === 'int' || columns[c].type === 'float' ? packNumeric({ values: vals, nulls: null }) : { values: vals, nulls: null });
   }
   addExcelDisplay(XLSX, ws, data, columns, n, skip);
+  addExcelFormulas(XLSX, ws, data, columns.length, n, skip);
   const info = {
     format: 'excel', sheets: wb.SheetNames.slice(), activeSheet: name, totalRows: total, headerRow: !!skip,
     truncated: n < total,
@@ -449,6 +447,7 @@ function sheetTable(wb, sheetName, options) {
   const table = new Table(columns, data, n);
   if (o.excelFormats === false) table.formatted = false;
   info.formattedCells = table.formattedCells;
+  info.formulaCells = table.formulaCells;
   return { table, info };
 }
 
@@ -497,10 +496,181 @@ function addExcelDisplay(XLSX, ws, data, columns, n, skip = 1) {
   }
 }
 
-async function loadExcel(source, options, _onPreview, sheetName) {
+/**
+ * Formulas and error cells for the rows that sheet_to_json kept (blankrows: false). The kept rows are found
+ * with the same rule as SheetJS's make_json_row: a row counts when one of its cells has a value (v != null,
+ * error cells never count). data[c].formulas[r] = formula text without '=' (SheetJS cell.f, shared formulas
+ * already expanded). Error cells (#DIV/0!, #N/A) come out of sheet_to_json as null, so their text goes into
+ * data[c].display, where the grid shows it the way Excel does.
+ */
+function addExcelFormulas(XLSX, ws, data, width, n, skip = 1) {
+  const dense = ws && ws['!data'];
+  if (!dense || !n || !ws['!ref']) return;
+  let anyF = false, anyE = false;
+  for (let R = 0; R < dense.length && !(anyF && anyE); R++) {
+    const row = dense[R];
+    if (!row) continue;
+    for (let C = 0; C < row.length; C++) {
+      const cell = row[C];
+      if (!cell) continue;
+      if (cell.f) anyF = true;
+      if (cell.t === 'e') anyE = true;
+    }
+  }
+  if (!anyF && !anyE) return;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const kept = [];
+  for (let R = range.s.r; R <= range.e.r && kept.length < n + skip; R++) {
+    const row = dense[R];
+    if (!row) continue;
+    let empty = true;
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cell = row[C];
+      if (!cell || cell.t === undefined || cell.t === 'e' || cell.t === 'z') continue;
+      if (cell.v !== null && cell.v !== undefined) { empty = false; break; }
+    }
+    if (!empty) kept.push(R);
+  }
+  for (let c = 0; c < width; c++) {
+    const C = range.s.c + c;
+    let formulas = null, fCount = 0;
+    const col = data[c];
+    for (let r = 0; r < n; r++) {
+      const R = kept[r + skip];
+      if (R === undefined) break;
+      const cell = dense[R] && dense[R][C];
+      if (!cell) continue;
+      if (cell.f) {
+        if (!formulas) formulas = new Array(n).fill(null);
+        formulas[r] = String(cell.f);
+        fCount++;
+      }
+      if (cell.t === 'e' && typeof cell.w === 'string' && cell.w) {
+        if (!col.display) { col.display = new Array(n); col.displayCount = 0; }
+        if (col.display[r] === undefined || col.display[r] === null) { col.display[r] = cell.w; col.displayCount++; }
+      }
+    }
+    if (formulas) { col.formulas = formulas; col.formulaCount = fCount; }
+  }
+}
+
+// .xlsx/.xlsm files at or above this size go through the streaming reader (src/core/xlsxstream.js): first rows
+// in well under a second and a fraction of SheetJS's memory. Smaller files, .xls, .xlsb and .ods use SheetJS.
+const STREAM_MIN_BYTES = 2 * MB;
+
+function streamable(source, size) {
+  const p = String(source.path || source.name || '').toLowerCase();
+  return size >= STREAM_MIN_BYTES && (p.endsWith('.xlsx') || p.endsWith('.xlsm'));
+}
+
+/**
+ * Table from the streaming reader's rows. Same rules as sheetTable: row 1 is the header unless it holds no
+ * text, columns get JS types, numbers are packed, Excel display text where it differs from the value, error
+ * text for error cells, and the formulas.
+ */
+function streamTable(res, rowsIn, shownIn, formulasIn, name, sheets, o, done) {
+  const XLSX = sheetjs();
+  const rows = rowsIn;
+  const skip = rows.length && isHeaderRow(rows[0]) ? 1 : 0;
+  const head = skip ? rows[0] : [];
+  let width = 0;
+  for (let r = 0; r < rows.length; r++) if (rows[r].length > width) width = rows[r].length;
+  const stored = Math.max(0, rows.length - skip);
+  const n = Math.min(stored, o.maxRows);
+  const { formatValue } = require('./table');
+  const columns = [];
+  const data = [];
+  for (let c = 0; c < width; c++) {
+    const vals = new Array(n);
+    for (let r = 0; r < n; r++) {
+      const v = rows[r + skip][c];
+      vals[r] = v === undefined ? null : v instanceof Date ? snapExcelDate(v) : v;
+    }
+    const h = head[c];
+    const type = inferJsType(vals, n);
+    columns.push({ name: h === null || h === undefined || h === '' ? XLSX.utils.encode_col(c) : String(h instanceof Date ? h.toISOString().slice(0, 10) : h), type });
+    const col = type === 'int' || type === 'float' ? packNumeric({ values: vals, nulls: null }) : { values: vals, nulls: null };
+    let display = null, dCount = 0, formulas = null, fCount = 0;
+    for (let r = 0; r < n; r++) {
+      const srow = shownIn && shownIn[r + skip];
+      const w = srow ? srow[c] : null;
+      if (w !== null && w !== undefined) {
+        const raw = vals[r];
+        let use = false;
+        if (raw === null || raw === undefined) use = true; // error cell: #DIV/0!, #N/A
+        else if (typeof raw !== 'string') {
+          const plain = formatValue(raw, type);
+          use = w !== plain && !(raw instanceof Date && DEFAULT_SHORT_DATE.test(w));
+        }
+        if (use) { if (!display) display = new Array(n); display[r] = String(w); dCount++; }
+      }
+      const frow = formulasIn && formulasIn[r + skip];
+      const f = frow ? frow[c] : null;
+      if (f !== null && f !== undefined) { if (!formulas) formulas = new Array(n).fill(null); formulas[r] = String(f); fCount++; }
+    }
+    if (display) { col.display = display; col.displayCount = dCount; }
+    if (formulas) { col.formulas = formulas; col.formulaCount = fCount; }
+    data.push(col);
+  }
+  const truncated = done ? (res.truncated || stored > n) : false;
+  const total = done && !res.truncated ? stored : null;
+  const info = {
+    format: 'excel', sheets: sheets.slice(), activeSheet: name, totalRows: total, headerRow: !!skip, streamed: true,
+    truncated,
+    truncatedReason: truncated ? (total !== null
+      ? `Showing the first ${n.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} rows (limit tableViewer.maxRows).`
+      : `Showing the first ${n.toLocaleString('en-US')} rows (limit tableViewer.maxRows). The sheet has more.`) : '',
+  };
+  const table = new Table(columns, data, n);
+  if (o.excelFormats === false) table.formatted = false;
+  info.formattedCells = table.formattedCells;
+  info.formulaCells = table.formulaCells;
+  return { table, info };
+}
+
+async function loadExcelStream(source, options, onPreview, sheetName, size) {
+  const o = opts(options);
+  const { openXlsx } = require('./xlsxstream');
+  const wb = await openXlsx(source.path ? { path: source.path } : { bytes: source.bytes });
+  if (!wb.sheets.length) throw Object.assign(new Error('no worksheets'), { code: 'XLSX_STREAM_UNSUPPORTED' });
+  const read = async (want, preview) => {
+    const name = wb.sheets.includes(want) ? want : wb.sheets[0];
+    const res = await wb.readSheet(name, {
+      maxRows: o.maxRows + 1, // the header row counts as a raw row
+      previewRows: PREVIEW_ROWS + 1,
+      onPreview: preview ? (rows, shown, formulas) => {
+        const t = streamTable({}, rows, shown, formulas, name, wb.sheets, o, false);
+        t.info.fileSize = size;
+        preview(t.table, { ...t.info, loading: true });
+      } : undefined,
+    });
+    const out = streamTable(res, res.rows, res.shown, res.formulas, name, wb.sheets, o, true);
+    out.info.fileSize = size;
+    return out;
+  };
+  const res = await read(sheetName, onPreview);
+  res.loadSheet = name => read(name, null);
+  return res;
+}
+
+/**
+ * Excel and OpenDocument. Large .xlsx/.xlsm stream; the rest (and any workbook the streaming reader can't
+ * handle) go through SheetJS. loadSheet(name) may return a Promise: callers await it.
+ */
+async function loadExcel(source, options, onPreview, sheetName) {
+  const size = sourceSize(source);
+  const o = opts(options);
+  if (streamable(source, size) && size <= Math.max(o.maxExcelSizeMB, o.maxFileSizeMB) * MB) {
+    try {
+      return await loadExcelStream(source, options, onPreview, sheetName, size);
+    } catch (e) {
+      if (e && e.code === 'XLSX_TOO_BIG') throw Object.assign(new Error(`This workbook is too large to show: ${e.message}`), { code: 'TOO_LARGE' });
+      // Not a plain .xlsx the streaming reader handles (Strict OOXML, encrypted, damaged): SheetJS decides.
+    }
+  }
   const wb = readWorkbook(source, options);
   const res = sheetTable(wb, sheetName, options);
-  res.info.fileSize = sourceSize(source);
+  res.info.fileSize = size;
   res.loadSheet = name => sheetTable(wb, name, options);
   return res;
 }
@@ -517,5 +687,5 @@ async function loadFile(source, format, options, onPreview) {
 module.exports = {
   snapExcelDate,
   loadFile, loadCsv, loadParquet, loadExcel, sheetTable, isHeaderRow, formatFromPath, parquetType, schemaRows,
-  inferJsType, DEFAULTS, PREVIEW_ROWS, CSV_DELIMITERS, pickEncoding,
+  inferJsType, DEFAULTS, PREVIEW_ROWS, STREAM_MIN_BYTES, streamTable, CSV_DELIMITERS, CSV_ENCODINGS, pickEncoding,
 };

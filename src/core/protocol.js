@@ -6,18 +6,20 @@
 //   reload (the file changed on disk: read it again, keep sort, filters and sheet), formats (Excel number formats on/off)
 // Worker -> host -> webview: meta, rows, view, copyResult, stats, exportResult, cell, error
 // Host -> webview: init, pro (Pro switch and license state), copied, exported
-// Pro features (filter.query, stats, export) run only when the worker was told pro: true.
+// The SQL filter (filter.query), stats and export are free since 0.4. 'formulas' shows Excel formula text.
 // The webview is destroyed when its tab is hidden (retainContextWhenHidden: false) and sends 'ready'
 // again when shown. The host then sends 'resync' and the worker answers with a full 'meta' that carries
 // the current sort, filters and sheet, plus the last load error, so the new webview can rebuild its state.
 
 const MAX_PAGE = 2000;
 const MAX_FILTER_LEN = 500;
-const COPY_FORMATS = new Set(['csv', 'tsv', 'json']);
+const COPY_FORMATS = new Set(['csv', 'tsv', 'json', 'md']);
 const EXPORT_FORMATS = new Set(['csv', 'tsv', 'json', 'jsonl']);
 const MAX_QUERY_LEN = 2000;
 // 'auto' detects the delimiter. The others match readers.CSV_DELIMITERS.
 const CSV_DELIMITER_CHOICES = new Set(['auto', ',', '\t', ';', '|', ':']);
+// 'auto' detects the encoding (BOM, UTF-8, then Shift_JIS / GB18030 / EUC-KR / Big5 / Windows-1252). See readers.CSV_ENCODINGS.
+const { CSV_ENCODINGS } = require('./encoding');
 const MAX_COPY_TEXT = 1000000;
 
 function int(v, lo, hi, dflt) {
@@ -39,6 +41,8 @@ function validateWebviewMessage(msg) {
       return { type: msg.type };
     case 'formats':
       return typeof msg.on === 'boolean' ? { type: 'formats', on: msg.on } : null;
+    case 'formulas':
+      return typeof msg.on === 'boolean' ? { type: 'formulas', on: msg.on } : null;
     case 'export':
       // The host asks for the format and the file; the webview may suggest a format.
       return EXPORT_FORMATS.has(msg.format) ? { type: 'export', format: msg.format } : { type: 'export' };
@@ -80,9 +84,15 @@ function validateWebviewMessage(msg) {
     }
     case 'sheet':
       return typeof msg.name === 'string' ? { type: 'sheet', name: msg.name.slice(0, 300) } : null;
-    case 'csvOptions':
+    case 'csvOptions': {
       if (!CSV_DELIMITER_CHOICES.has(msg.delimiter) || typeof msg.header !== 'boolean') return null;
-      return { type: 'csvOptions', delimiter: msg.delimiter, header: msg.header };
+      const out = { type: 'csvOptions', delimiter: msg.delimiter, header: msg.header };
+      if (msg.encoding !== undefined) {
+        if (msg.encoding !== 'auto' && !CSV_ENCODINGS.includes(msg.encoding)) return null;
+        out.encoding = msg.encoding;
+      }
+      return out;
+    }
     case 'getCell':
       return {
         type: 'getCell',
@@ -114,9 +124,12 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   let started = 0;
   let loadMs = null; // time of the full load, resent on resync
   let lastError = null; // non-transient error, resent on resync
-  let pro = false; // Pro features allowed (set by the host from the license check)
+  // SQL filter, column stats and export are free since 0.4 (no paywall). The flag stays so an old host that
+  // sends pro: false still works, but nothing is locked by it any more.
+  let pro = true;
   let lastOpen = null; // the 'open' message, reused when the CSV options change
   let formatted = true; // Excel number formats shown (tableViewer.excelFormats, toolbar switch)
+  let showFormulas = false; // Excel: formula text instead of results (toolbar switch "Formulas")
   let pendingReload = null; // a reload asked for while a load was running
   const proOnly = what => post({ type: 'error', message: `${what} is a Table Viewer Pro feature.`, code: 'PRO', transient: true });
 
@@ -129,6 +142,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
       info, sort: table ? table.sort : null,
       filters: filtersOut(),
       formatted,
+      showFormulas,
       ...extra,
     });
   };
@@ -145,7 +159,6 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     loading = true;
     started = now();
     const options = msg.options || {};
-    if (typeof msg.pro === 'boolean') pro = msg.pro;
     if (typeof options.excelFormats === 'boolean') formatted = options.excelFormats;
     try {
       const res = await loader(msg.source, msg.format, options, (preview, previewInfo) => {
@@ -156,6 +169,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
       });
       table = res.table;
       table.formatted = formatted;
+      table.showFormulas = showFormulas;
       info = res.info;
       loadSheet = res.loadSheet || null;
       loading = false;
@@ -200,7 +214,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     try {
       res = await loader(req.source, req.format, req.options || {}, null);
       if (prev && prev.sheet && res.loadSheet && res.info && res.info.sheets && res.info.sheets.includes(prev.sheet) && res.info.activeSheet !== prev.sheet) {
-        const s = res.loadSheet(prev.sheet);
+        const s = await res.loadSheet(prev.sheet);
         s.loadSheet = res.loadSheet;
         s.info.fileSize = res.info.fileSize;
         res = s;
@@ -214,6 +228,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     lastOpen = req;
     table = res.table;
     table.formatted = formatted;
+    table.showFormulas = showFormulas;
     info = res.info;
     loadSheet = res.loadSheet || null;
     lastError = null;
@@ -241,6 +256,25 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
       const j = map(prev.sort.col);
       if (j >= 0) table.setSort(j, prev.sort.dir);
     }
+  }
+
+  /** Show another sheet of the workbook. The streaming reader loads it from the file (async). */
+  async function switchSheet(name) {
+    if (!loadSheet || loading) return undefined;
+    const fn = loadSheet;
+    loading = true;
+    let res;
+    try { res = await fn(name); } catch (e) { loading = false; fail(e); return runPendingReload(); }
+    loading = false;
+    lastError = null;
+    res.info.fileSize = info.fileSize;
+    table = res.table;
+    table.formatted = formatted;
+    table.showFormulas = showFormulas;
+    info = res.info;
+    version++;
+    sendMeta({ loadMs: 0 });
+    return runPendingReload();
   }
 
   /** Post a non-transient error and remember it so a reloaded webview sees it too. */
@@ -286,26 +320,10 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
         const r = table.copy(msg.sel, msg.format, msg.maxRows || 100000);
         return post({ type: 'copyResult', format: msg.format, ...r });
       }
-      case 'sheet': {
-        if (!loadSheet || loading) return undefined;
-        let res;
-        try { res = loadSheet(msg.name); } catch (e) { return fail(e); }
-        lastError = null;
-        res.info.fileSize = info.fileSize;
-        table = res.table;
-        table.formatted = formatted;
-        info = res.info;
-        version++;
-        return sendMeta({ loadMs: 0 });
-      }
+      case 'sheet':
+        return switchSheet(msg.name);
       case 'entitlement': {
-        pro = !!msg.pro;
-        // License removed or expired: drop a Pro query so the view matches what the user may use.
-        if (!pro && table && !loading && table.filters && table.filters.query) {
-          table.setFilters({ global: table.filters.global, columns: table.filters.columns });
-          version++;
-          sendMeta();
-        }
+        // Nothing is locked since 0.4: the SQL filter, stats and export are free.
         return undefined;
       }
       case 'stats': {
@@ -323,6 +341,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
         }
         if (loading) return post({ type: 'error', message: 'Still loading. Change the delimiter when all rows are in.', code: 'BUSY', transient: true });
         const options = { ...(lastOpen.options || {}), delimiter: msg.delimiter, header: msg.header };
+        if (msg.encoding !== undefined) options.encoding = msg.encoding;
         return open({ ...lastOpen, options });
       }
       case 'getCell': {
@@ -336,9 +355,18 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
         formatted = !!msg.on;
         if (!table) return undefined;
         table.formatted = formatted;
+        table.showFormulas = showFormulas;
         if (table.filters.global) table.rebuild(); // the search also matches the Excel text
         version++;
         return post({ type: 'view', version, viewCount: table.viewCount, sort: table.sort, ms: 0, formatted });
+      }
+      case 'formulas': {
+        showFormulas = !!msg.on;
+        if (!table) return undefined;
+        table.showFormulas = showFormulas;
+        if (table.filters.global) table.rebuild(); // the search also matches the formula text
+        version++;
+        return post({ type: 'view', version, viewCount: table.viewCount, sort: table.sort, ms: 0, formatted, showFormulas });
       }
       case 'resync':
         sendMeta(loading || loadMs === null ? { resync: true } : { resync: true, loadMs });

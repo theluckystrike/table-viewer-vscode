@@ -25,7 +25,9 @@ test('isEnabled: free features always run, Pro features only with a license', ()
     assert.strictEqual(P.isEnabled(id, pro), true, id);
   }
   assert.strictEqual(P.isEnabled('no-such-feature', pro), false);
-  assert.deepStrictEqual(P.PRO_FEATURES.map(f => f.id), ['large-files', 'sql-filter', 'export', 'column-stats']);
+  // 0.4: the SQL filter, export and column stats moved to the free list (no paywall).
+  assert.deepStrictEqual(P.PRO_FEATURES.map(f => f.id), ['large-files']);
+  for (const f of ['sql-filter', 'export', 'column-stats', 'copy-md', 'formulas']) assert.ok(P.FREE_FEATURES.includes(f), f);
 });
 
 test('limits: switch off keeps 0.1 behavior, free tier caps, Pro lifts the caps', () => {

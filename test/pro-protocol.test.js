@@ -28,21 +28,19 @@ test('Pro webview messages are validated', () => {
   assert.deepStrictEqual(v({ type: 'filter', query: 7 }), { type: 'filter', global: '', columns: {} });
 });
 
-test('without a license the worker refuses the SQL filter, stats and export', async () => {
+test('0.4: without a license the SQL filter, stats and export all run (nothing is locked)', async () => {
   for (const pro of [undefined, false]) {
     const { session, out } = await open(pro);
     session.handle({ type: 'filter', global: '', columns: { 2: '>15' }, query: "city = 'Paris'" });
-    assert.strictEqual(out[0].code, 'PRO');
-    assert.match(out[0].message, /SQL filter is a Table Viewer Pro feature/);
-    assert.strictEqual(out[1].type, 'view');
-    assert.strictEqual(out[1].viewCount, 3, 'the free column filter still applies');
-    assert.strictEqual(session.table.filters.query, undefined);
+    assert.strictEqual(out[0].type, 'view');
+    assert.ok(!out.some(m => m.code === 'PRO'));
+    assert.strictEqual(session.table.filters.query, "city = 'Paris'");
     session.handle({ type: 'stats' });
-    assert.strictEqual(out[2].code, 'PRO');
+    assert.strictEqual(out[1].type, 'stats');
     await session.handle({ type: 'export', format: 'csv' });
-    assert.strictEqual(out[3].code, 'PRO');
-    assert.deepStrictEqual({ type: out[4].type, ok: out[4].ok }, { type: 'exportResult', ok: false });
-    assert.ok(!('text' in out[4]));
+    assert.strictEqual(out[2].type, 'exportResult');
+    assert.strictEqual(out[2].ok, true);
+    assert.ok(!out.some(m => m.code === 'PRO'));
   }
 });
 
@@ -82,16 +80,12 @@ test('a bad query is reported, and the other filters still apply without it', as
   assert.strictEqual(session.table.filters.query, undefined);
 });
 
-test('a license removed during a session drops the active query', async () => {
+test('0.4: a license change during a session keeps the active query (the SQL filter is free)', async () => {
   const { session, out } = await open(true);
   session.handle({ type: 'filter', global: '', columns: {}, query: 'fare >= 30' });
   assert.strictEqual(out[0].viewCount, 2);
   session.handle({ type: 'entitlement', pro: false });
-  assert.strictEqual(session.pro, false);
-  assert.strictEqual(out[1].type, 'meta');
-  assert.strictEqual(out[1].viewCount, 4);
-  assert.deepStrictEqual(out[1].filters, { global: '', columns: {} });
-  session.handle({ type: 'entitlement', pro: true });
   assert.strictEqual(session.pro, true);
-  assert.strictEqual(out.length, 2);
+  assert.strictEqual(out.length, 1);
+  assert.strictEqual(session.table.filters.query, 'fare >= 30');
 });

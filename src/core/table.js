@@ -202,6 +202,14 @@ function csvEscape(s, d) {
 
 const NUMERIC = new Set(['int', 'float', 'decimal', 'bigint']);
 
+/** One Markdown table cell: pipes escaped, line breaks as <br>, HTML-ish brackets kept literal. */
+function mdEscape(s) {
+  if (s === null || s === undefined) return '';
+  let t = String(s);
+  if (t.length > MAX_CELL_CHARS) t = t.slice(0, MAX_CELL_CHARS) + '…';
+  return t.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/&(?=[a-zA-Z#][a-zA-Z0-9]*;)/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r\n|\r|\n/g, '<br>');
+}
+
 class Table {
   /**
    * @param {{name:string,type:string,detail?:string}[]} columns
@@ -217,6 +225,22 @@ class Table {
     this.filters = { global: '', columns: {} };
     // Excel: show cells with the number format from the workbook (data[c].display) instead of the raw value.
     this.formatted = true;
+    // Excel: show the formula text (=SUM(B2:B9)) instead of the result, like Ctrl+` in Excel (data[c].formulas).
+    this.showFormulas = false;
+  }
+
+  /** Number of cells that hold a formula (Excel files; data[c].formulas). */
+  get formulaCells() {
+    let n = 0;
+    for (const d of this.data) if (d.formulas) n += d.formulaCount || 0;
+    return n;
+  }
+
+  /** Formula text of one cell with a leading '=', or null. */
+  formula(id, col) {
+    const f = this.data[col].formulas;
+    const s = f ? f[id] : null;
+    return s === undefined || s === null ? null : '=' + s;
   }
 
   /** Number of cells that have Excel display text different from the raw value. */
@@ -229,11 +253,21 @@ class Table {
   /** Text shown for one cell: Excel's formatted text when formats are on, else the raw value. */
   shown(id, col) {
     const d = this.data[col];
+    if (this.showFormulas && d.formulas) {
+      const f = d.formulas[id];
+      if (f !== undefined && f !== null) return '=' + f;
+    }
     if (this.formatted && d.display) {
       const s = d.display[id];
       if (s !== undefined && s !== null) return s;
     }
-    return formatValue(this.get(id, col), this.columns[col].type);
+    const v = this.get(id, col);
+    // A formula with no saved result (a file written by a script, never opened in Excel): show the formula.
+    if (v === null && d.formulas) {
+      const f = d.formulas[id];
+      if (f !== undefined && f !== null) return '=' + f;
+    }
+    return formatValue(v, this.columns[col].type);
   }
 
   get(row, col) {
@@ -271,12 +305,17 @@ class Table {
     if (!Number.isInteger(col) || col < 0 || col >= this.columns.length) return null;
     const id = this.rowId(viewRow);
     const s = this.shown(id, col);
-    if (s === null) return { id, value: null, length: 0, truncated: false };
+    if (s === null) {
+      const f = this.formula(id, col);
+      return f === null ? { id, value: null, length: 0, truncated: false } : { id, value: null, length: 0, truncated: false, formula: f.slice(0, maxChars) };
+    }
     const truncated = s.length > maxChars;
     const out = { id, value: truncated ? s.slice(0, maxChars) : s, length: s.length, truncated };
     // Excel formats on: also send the stored value when it differs from the text shown.
     const raw = formatValue(this.get(id, col), this.columns[col].type);
     if (raw !== s && raw !== null) out.raw = raw.length > maxChars ? raw.slice(0, maxChars) : raw;
+    const f = this.formula(id, col);
+    if (f !== null) out.formula = f.length > maxChars ? f.slice(0, maxChars) : f;
     return out;
   }
 
@@ -325,6 +364,8 @@ class Table {
             if (!isNullish(v) && String(formatValue(v)).toLowerCase().includes(g)) { ok = true; break; }
             const dsp = this.formatted && this.data[c].display ? this.data[c].display[r] : null;
             if (dsp && dsp.toLowerCase().includes(g)) { ok = true; break; }
+            const fx = this.showFormulas && this.data[c].formulas ? this.data[c].formulas[r] : null;
+            if (fx && ('=' + fx).toLowerCase().includes(g)) { ok = true; break; }
           }
         }
         if (ok) keep[m++] = r;
@@ -357,7 +398,9 @@ class Table {
   }
 
   /**
-   * Text for a rectangular selection of the view. format: 'csv' | 'tsv' | 'json'.
+   * Text for a rectangular selection of the view. format: 'csv' | 'tsv' | 'json' | 'md'.
+   * 'md' is a GitHub Markdown table of the text as shown (Excel formats, formulas when shown), for docs,
+   * issues and AI chats. The others copy the stored values.
    * Returns {text, rows, truncated}.
    */
   copy(sel, format, maxRows = 100000) {
@@ -381,6 +424,16 @@ class Table {
         arr.push(o);
       }
       return { text: JSON.stringify(arr, null, 2), rows: arr.length, truncated };
+    }
+    if (format === 'md') {
+      const lines = [];
+      lines.push('| ' + cols.map(c => mdEscape(this.columns[c].name)).join(' | ') + ' |');
+      lines.push('|' + cols.map(c => (NUMERIC.has(this.columns[c].type) ? ' ---: ' : ' --- ')).join('|') + '|');
+      for (let r = r0; r <= last; r++) {
+        const id = this.rowId(r);
+        lines.push('| ' + cols.map(c => mdEscape(this.shown(id, c))).join(' | ') + ' |');
+      }
+      return { text: lines.join('\n'), rows: last - r0 + 1, truncated };
     }
     const d = format === 'tsv' ? '\t' : ',';
     const withHeader = sel.header !== false;
@@ -467,6 +520,6 @@ function tableFromStringColumns(header, cols, rowCount) {
 }
 
 module.exports = {
-  Table, inferStringType, convertStringColumn, formatValue, jsonValue, parseFilter, csvEscape,
+  Table, inferStringType, convertStringColumn, formatValue, jsonValue, parseFilter, csvEscape, mdEscape,
   compareKeys, sortKey, tableFromStringColumns, packNumeric, uniqueNames, NUMERIC, EXPORT_FORMATS,
 };

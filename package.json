@@ -1,8 +1,8 @@
 {
   "name": "table-viewer-vscode",
-  "displayName": "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer",
-  "description": "Free XLSX viewer, Excel viewer and CSV viewer: no paywall, no ads, no license banner. Also opens Parquet as a fast sortable, filterable table: 1M rows, Excel number formats, Git compare, auto-reload on change, no Python.",
-  "version": "0.3.3",
+  "displayName": "XLSX Viewer for Excel, CSV & Parquet",
+  "description": "Free XLSX viewer, Excel viewer and CSV viewer: no paywall, no ads, no license banner. Big Excel files and 1M-row CSV open fast, with formulas, sheets, filter, sort, SQL and copy as Markdown. Also Parquet.",
+  "version": "0.4.0",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -23,33 +23,33 @@
     "xlsx viewer",
     "excel viewer",
     "csv viewer",
+    "excel preview",
+    "xls viewer",
+    "free excel viewer",
+    "spreadsheet viewer",
     "parquet viewer",
     "xlsx",
     "excel",
     "csv",
     "parquet",
-    "excel preview",
-    "xlsx diff",
-    "csv diff",
-    "excel compare",
-    "spreadsheet viewer",
-    "parquet file",
-    "tsv",
     "xls",
     "xlsm",
     "ods",
-    "table viewer",
+    "tsv",
+    "excel formulas",
+    "markdown table",
+    "large csv",
     "csv preview",
-    "parquet schema",
+    "xlsx diff",
+    "csv diff",
+    "excel compare",
+    "table viewer",
     "data viewer",
+    "sql",
     "dataframe",
-    "pandas",
-    "arrow",
-    "data science",
-    "large files",
-    "auto reload",
-    "number format",
-    "offline"
+    "shift_jis",
+    "encoding",
+    "no paywall"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [],
@@ -138,6 +138,11 @@
         "category": "Table Viewer"
       },
       {
+        "command": "tableViewer.copySelectionAsMarkdown",
+        "title": "Copy Selection as Markdown Table",
+        "category": "Table Viewer"
+      },
+      {
         "command": "tableViewer.openWalkthrough",
         "title": "Get Started",
         "category": "Table Viewer"
@@ -203,6 +208,10 @@
           "when": "activeCustomEditorId =~ /^tableViewer\\./"
         },
         {
+          "command": "tableViewer.copySelectionAsMarkdown",
+          "when": "activeCustomEditorId =~ /^tableViewer\\./"
+        },
+        {
           "command": "tableViewer.enterLicenseKey",
           "when": "tableViewer.proEnabled"
         },
@@ -236,13 +245,13 @@
           "type": "number",
           "default": 512,
           "minimum": 1,
-          "description": "CSV/TSV: read at most this many MB from the start of the file. Parquet files are read by row groups, so only maxRows applies."
+          "description": "CSV/TSV: read at most this many MB from the start of the file. Also the size limit for streamed .xlsx/.xlsm workbooks. Parquet files are read by row groups, so only maxRows applies."
         },
         "tableViewer.maxExcelSizeMB": {
           "type": "number",
           "default": 50,
           "minimum": 1,
-          "description": "Excel/ODS files are read whole. Larger workbooks show a message instead of loading."
+          "description": "Excel files read whole in memory (.xls, .xlsb, .ods and .xlsx under 2 MB) above this size show a message instead of loading. Larger .xlsx and .xlsm files are streamed and limited by tableViewer.maxFileSizeMB and tableViewer.maxRows."
         },
         "tableViewer.maxCopyRows": {
           "type": "number",

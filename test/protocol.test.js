@@ -89,7 +89,7 @@ test('session: sheet switch uses the loader-provided sheet reader', async () => 
     loader: async () => ({ table: fakeTable(1), info: { sheets: ['A', 'B'], activeSheet: 'A' }, loadSheet: name => ({ table: fakeTable(3), info: { sheets: ['A', 'B'], activeSheet: name } }) }),
   });
   await session.handle({ type: 'open', source: {}, format: 'excel', options: {} });
-  session.handle({ type: 'sheet', name: 'B' });
+  await session.handle({ type: 'sheet', name: 'B' }); // 0.4: sheet loads may be async (streaming reader)
   const last = out[out.length - 1];
   assert.strictEqual(last.type, 'meta');
   assert.strictEqual(last.info.activeSheet, 'B');
@@ -163,11 +163,11 @@ test('session: switching sheet sends empty filters, and a failing sheet is repor
   await session.handle({ type: 'open', source: {}, format: 'excel', options: {} });
   session.handle({ type: 'filter', global: 'r1', columns: { 1: 'r' } });
   assert.strictEqual(out[out.length - 1].viewCount, 1);
-  session.handle({ type: 'sheet', name: 'B' });
+  await session.handle({ type: 'sheet', name: 'B' });
   const meta = out[out.length - 1];
   assert.strictEqual(meta.type, 'meta');
   assert.deepStrictEqual(meta.filters, { global: '', columns: {} });
   assert.strictEqual(meta.viewCount, 5);
-  session.handle({ type: 'sheet', name: 'C' });
+  await session.handle({ type: 'sheet', name: 'C' });
   assert.deepStrictEqual(out[out.length - 1], { type: 'error', message: 'sheet C is broken', code: undefined });
 });

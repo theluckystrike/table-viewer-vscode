@@ -2,15 +2,15 @@
 // Free and Pro features, and the limits each tier gets. Pure functions so tests can run them
 // with the Pro switch on or off.
 
+// Since 0.4 the SQL filter, export and column stats are free for everyone: the listing promises
+// "no paywall", and the users who leave paywalled rivals are the ones we want.
 const FREE_FEATURES = Object.freeze([
-  'open-parquet', 'open-excel', 'open-csv', 'sort', 'filter', 'copy-csv', 'copy-tsv', 'copy-json', 'parquet-schema',
+  'open-parquet', 'open-excel', 'open-csv', 'sort', 'filter', 'copy-csv', 'copy-tsv', 'copy-json', 'copy-md', 'parquet-schema',
+  'sql-filter', 'export', 'column-stats', 'formulas',
 ]);
 
 const PRO_FEATURES = Object.freeze([
   { id: 'large-files', title: 'Files past the free limits (more rows, bigger CSV and Excel files)' },
-  { id: 'sql-filter', title: 'SQL WHERE filter over all rows' },
-  { id: 'export', title: 'Export the filtered rows to CSV, TSV, JSON or JSON Lines' },
-  { id: 'column-stats', title: 'Column stats: count, nulls, distinct, min, max, mean, top values' },
 ]);
 
 // Free tier caps, used only when Pro is switched on. They equal the 0.1 defaults, so a free user

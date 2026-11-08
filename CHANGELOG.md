@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 (2026-11-08)
+
+- Big Excel files: .xlsx and .xlsm workbooks of 2 MB and more are read by a new streaming reader. A 48 MB workbook with 660,000 rows shows its first rows in 0.5 s and loads in 3.4 s in real VS Code (0.3.3: nothing for 10 s, loaded in 9.5 s). The extension host used 1.3 GB for it and now uses about 0.5 GB. Workbooks the new reader can't read still open with SheetJS, as before. Streamed workbooks follow `tableViewer.maxFileSizeMB` (512 MB) instead of the 50 MB Excel limit.
+- Formulas: the cell panel shows the formula of a cell next to its result. "Formulas: on" in the toolbar shows all formulas in the grid. A formula with no saved result shows its formula instead of an empty cell.
+- Error cells (`#DIV/0!`, `#N/A`, `#REF!`) show their text. They showed as empty cells before.
+- Copy Markdown: a new toolbar button and the command "Copy Selection as Markdown Table".
+- Freeze first column: a toolbar switch that keeps the first column in view while you scroll sideways.
+- The SQL filter, column stats and export are free and always shown. Nothing is locked.
+- CSV encoding: Shift_JIS, GB18030, Big5, EUC-KR, Windows-1251 and UTF-16 without a byte order mark are detected. A new Encoding list in the toolbar reads the file in one of 13 encodings, and the choice is kept for the file.
+- The Marketplace name is now "XLSX Viewer for Excel, CSV & Parquet". The extension id, commands and settings stay the same.
+
 ## 0.3.3 (2026-11-08)
 
 - An empty file (0 bytes), a sheet with no cells or a file that cannot be read no longer counts as a good open for the rating question, so the question never shows next to the "This file is empty" note.

@@ -1,11 +1,28 @@
-# XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer
+# XLSX Viewer for Excel, CSV & Parquet
 
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs" alt="VS Code installs"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/v/zovo.table-viewer-vscode?label=version" alt="Version"></a>
 
-Free, with no paywall, no ads, no license banner, no evaluation popup and no account. There is nothing to buy.
+Free, with no paywall, no ads, no license banner, no evaluation popup and no account. There is nothing to buy. The SQL filter, column stats and export are free too.
 
 An XLSX viewer, Excel viewer, CSV viewer and Parquet viewer for VS Code. It shows Excel, CSV and Parquet files as a sortable, filterable table, even at 1,000,000 rows, with no Python and no setup, and it sends nothing over the network.
+
+New in 0.4:
+
+- Big Excel files open fast. In a real VS Code window, a 48 MB workbook with 660,000 rows showed its first rows in 0.5 s and finished loading in 3.4 s. Version 0.3 took 10 s before it showed anything, and the extension host used 1.3 GB. Now it uses about 0.5 GB.
+- Formulas: the cell panel shows the formula of the cell (`=SUM(B2:B9)`) next to its result, and "Formulas: on" in the toolbar shows every formula in the grid, like Ctrl+` in Excel. Error cells show `#DIV/0!` and `#N/A` as Excel does, and a formula with no saved result shows the formula instead of an empty cell.
+- Copy Markdown: copies the selection (or the whole view) as a Markdown table, as it looks on screen, ready for a README, an issue or an AI chat.
+- Freeze first column: keeps the first column in view while you scroll sideways. The header row always stays in view.
+- Free for everyone: the SQL `WHERE` filter, column stats (count, nulls, distinct, min, max, mean, top values) and export to CSV, TSV, JSON or JSON Lines. They were planned as paid features. Now nothing is locked.
+- Encoding: CSV files in Shift_JIS, GB18030, Big5, EUC-KR, Windows-1251 and UTF-16 without a byte order mark are detected, and an Encoding list in the toolbar reads the file in any of 13 encodings.
+
+![An Excel sales workbook in VS Code with "Formulas: on". The Revenue column shows =B2*C2 to =B7*C7, the Share column =D2/SUM($D$2:$D$7), and the Check column a VLOOKUP and an IF formula](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-formulas.png)
+
+*"Formulas: on" in a real VS Code 1.142 window. Switched off, the same cells show $25.00, 2.5% and `#DIV/0!`.*
+
+![A 48 MB Excel workbook with 660,000 rows and 8 columns open in VS Code, loaded in 3,985 ms. The total column holds formulas that were never calculated, so it shows =D2*E2 and so on](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-big-xlsx.png)
+
+*A generated 48 MB workbook (660,000 rows, written by openpyxl without saved formula results) in a real VS Code window on an M-series Mac. The first rows showed after 0.6 s.*
 
 New in 0.3:
 
@@ -21,9 +38,9 @@ New in 0.3:
 
 *Compare with Git HEAD on the same workbook after an edit. Each sheet is a section, and changed, added and removed rows are marked.*
 
-- Opens fast. Rows are read in a background thread and only the rows and columns on screen are drawn, so VS Code doesn't freeze, even on a file with 5,000 columns. A big CSV shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early. Excel files load whole.
+- Opens fast. Rows are read in a background thread and only the rows and columns on screen are drawn, so VS Code doesn't freeze, even on a file with 5,000 columns. A big CSV or Excel file shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early.
 - No Python, no kernel, no account. It's plain JavaScript that runs offline and sends nothing anywhere.
-- Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, sort, filter and copy-as-CSV/JSON, and the full text of any cell with its JSON indented.
+- Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, sort, filter, a SQL filter, column stats, copy as CSV, JSON or Markdown, export, and the full text of any cell with its JSON indented.
 
 ![A 1,000,000 row Parquet file in VS Code, sorted by fare_usd from high to low and filtered to zones that contain Airport, with 99,481 of 1,000,000 rows matching](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-parquet.png)
 
@@ -46,7 +63,11 @@ Click a column header to sort it. Clicks cycle through ascending, descending and
 
 Type in the box under a header to filter that column. Number columns take `>10`, `>=10`, `<5`, `=3`, `!=3` and ranges like `5..9`. Text columns match any part of the text, `=word` matches exactly and `!word` drops rows that contain it. `empty` and `!empty` work everywhere. The search box at the top looks in every column at once.
 
-Drag or Shift+click to select cells. Click row numbers to select whole rows, or the `#` corner (or Ctrl+A) to select everything. "Copy CSV" copies the selection with a header row, and "Copy JSON" copies an array of objects that keeps numbers, booleans and nested values as JSON. Ctrl+C (Cmd+C on macOS) copies plain tab-separated values, which paste straight into Excel or Google Sheets as cells. With nothing selected, the copy buttons take the whole filtered view.
+Drag or Shift+click to select cells. Click row numbers to select whole rows, or the `#` corner (or Ctrl+A) to select everything. "Copy CSV" copies the selection with a header row, and "Copy JSON" copies an array of objects that keeps numbers, booleans and nested values as JSON. "Copy Markdown" copies a Markdown table of the cells as shown, with number columns right-aligned. Ctrl+C (Cmd+C on macOS) copies plain tab-separated values, which paste straight into Excel or Google Sheets as cells. With nothing selected, the copy buttons take the whole filtered view.
+
+"SQL" opens a `WHERE` box that filters all rows, for example `fare > 20 AND (city = 'Paris' OR city LIKE 'Lon%') AND tip IS NOT NULL`. "Stats" shows count, nulls, distinct values, min, max, mean and the top values of each column for the rows in view. "Export" saves the rows in view, filtered and sorted, as CSV, TSV, JSON or JSON Lines.
+
+"Freeze first column" keeps the first column on screen while you scroll to the right. The column names and filter boxes always stay at the top.
 
 Double-click a cell, or press Enter, to open the cell panel under the table. It shows the whole value, wrapped, even past the 2,000 characters a grid cell shows. JSON objects and arrays are indented, and "Raw" shows the text as it is in the file. The panel follows the arrow keys, "Copy value" copies what it shows, and Esc closes it.
 
@@ -54,12 +75,14 @@ Double-click the edge of a column header to fit the column to the rows loaded so
 
 ## Excel number formats
 
-Excel stores 0.25 and shows 25%. Table Viewer now shows the cell the way Excel does, using the number format saved in the workbook: percentages, currency, thousands separators, decimals and custom date formats. Formula cells show the result Excel saved with the file.
+Excel stores 0.25 and shows 25%. Table Viewer shows the cell the way Excel does, using the number format saved in the workbook: percentages, currency, thousands separators, decimals and custom date formats. Formula cells show the result Excel saved with the file, and error cells show `#DIV/0!`, `#N/A` or `#REF!`.
+
+"Formulas: on" in the toolbar shows the formula text of every formula cell instead of its result. Shared formulas show the formula of each cell, with its own references. A formula that was never calculated (a file written by a script and not opened in Excel since) shows its formula instead of an empty cell.
 
 - Sort and the number filters (`>0.2`, `5..9`) use the stored values, so a column of percentages sorts as numbers.
 - The search box finds both the stored value and the text as shown, so `$1,234` finds the cell.
 - Copy CSV, Copy JSON and Ctrl+C copy the stored values, so numbers paste into a spreadsheet as numbers.
-- The cell panel (double-click a cell) shows the text and, next to it, the stored value.
+- The cell panel (double-click a cell) shows the text and, next to it, the stored value and the formula.
 - "Excel formats: on" in the toolbar switches one tab to the stored values. The setting `tableViewer.excelFormats` sets the default.
 - Dates in Excel's default short date format (m/d/yy) stay as ISO dates such as 2024-01-15, because Excel shows that format in each reader's own locale.
 
@@ -96,7 +119,7 @@ The Schema button shows each column's type. For Parquet it also shows the full s
 | Excel and OpenDocument | `.xlsx`, `.xlsm`, `.xlsb`, `.xls`, `.ods` | yes | SheetJS Community Edition 0.20.3 (Apache-2.0) |
 | CSV and TSV | `.csv`, `.tsv`, `.tab`, `.psv` | no, use "Open in Table Viewer" | built-in streaming parser |
 
-CSV files keep opening in the text editor by default, since people edit them as text. The delimiter (comma, tab, semicolon or pipe) is detected from the first lines. When the guess is wrong, for example in a semicolon file whose text has commas in it, pick comma, tab, semicolon, pipe or colon in the toolbar's Delimiter list. Untick "Header row" for a file that has none, and the columns are named column_1, column_2 and so on. Both choices are kept for each file in the workspace. UTF-8 and UTF-16 files with a byte order mark both work. Excel workbooks with several sheets get a sheet picker.
+CSV files keep opening in the text editor by default, since people edit them as text. The delimiter (comma, tab, semicolon or pipe) is detected from the first lines. When the guess is wrong, for example in a semicolon file whose text has commas in it, pick comma, tab, semicolon, pipe or colon in the toolbar's Delimiter list. Untick "Header row" for a file that has none, and the columns are named column_1, column_2 and so on. Both choices are kept for each file in the workspace. The encoding is detected: UTF-8 and UTF-16 (with or without a byte order mark), Windows-1252 (Excel's "CSV" on Western Windows), Shift_JIS, GB18030, Big5, EUC-KR and Windows-1251. If the text still looks wrong, pick the encoding in the toolbar's Encoding list; the choice is kept for the file. Excel workbooks with several sheets get a sheet picker.
 
 Column types come from the Parquet schema, from Excel cell types, or for CSV from the values themselves (int, float, bool, date, timestamp or string). Integers too large to hold exactly stay as text, so no digits are lost.
 
@@ -105,8 +128,8 @@ Column types come from the Parquet schema, from Excel cell types, or for CSV fro
 | Setting | Default | What it does |
 |---|---|---|
 | `tableViewer.maxRows` | 1,000,000 | Rows to load per file. A banner says when a file has more. |
-| `tableViewer.maxFileSizeMB` | 512 | How much of a CSV/TSV file to read. Parquet is read by row group, so only `maxRows` applies. |
-| `tableViewer.maxExcelSizeMB` | 50 | Excel files have to be read whole. Bigger workbooks show a message instead of loading. |
+| `tableViewer.maxFileSizeMB` | 512 | How much of a CSV/TSV file to read, and the size limit for big `.xlsx` and `.xlsm` workbooks, which are streamed. Parquet is read by row group, so only `maxRows` applies. |
+| `tableViewer.maxExcelSizeMB` | 50 | `.xls`, `.xlsb`, `.ods` and small `.xlsx` files are read whole. Bigger ones show a message instead of loading. |
 | `tableViewer.maxCopyRows` | 100,000 | Most rows copied to the clipboard at once. |
 | `tableViewer.autoReload` | true | Reload the table when the file changes on disk. |
 | `tableViewer.excelFormats` | true | Show Excel cells with the workbook's number formats. |
@@ -121,13 +144,9 @@ Table Viewer is read-only. It doesn't edit or save files.
 
 Microsoft Data Wrangler is a full data-cleaning tool. It needs a Python environment with pandas and runs a kernel. Table Viewer does less. It shows the file, sorts, filters and copies, and it opens before a kernel would have started. Use Data Wrangler when you need to transform data in Python, and Table Viewer when you just want to look.
 
-## Free and Pro
+## Free
 
-Everything above is free and stays free.
-
-A planned Pro tier adds an SQL query over the file and export to Parquet.
-
-Neither is built yet and nothing is locked today.
+Everything above is free, including the SQL filter, column stats and export. There is no paid tier, no trial, no license key to enter and no banner.
 
 ## More screenshots
 

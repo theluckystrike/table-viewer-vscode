@@ -84,6 +84,25 @@ function delimiterChoices(info) {
   return { choices: list, selected: auto ? 'auto' : (DELIMITER_NAMES[i.delimiter] ? i.delimiter : 'auto') };
 }
 
+// Same list and names as src/core/encoding.js (the webview bundle does not load the core modules).
+const ENCODINGS = [
+  ['utf-8', 'UTF-8'], ['utf-16le', 'UTF-16 LE'], ['utf-16be', 'UTF-16 BE'], ['windows-1252', 'Windows-1252 (Western)'],
+  ['windows-1250', 'Windows-1250 (Central European)'], ['windows-1251', 'Windows-1251 (Cyrillic)'], ['iso-8859-15', 'ISO-8859-15 (Latin-9)'],
+  ['koi8-r', 'KOI8-R (Russian)'], ['shift_jis', 'Shift_JIS (Japanese)'], ['euc-jp', 'EUC-JP (Japanese)'], ['gb18030', 'GB18030 (Simplified Chinese)'],
+  ['big5', 'Big5 (Traditional Chinese)'], ['euc-kr', 'EUC-KR (Korean)'],
+];
+const ENCODING_LABEL = new Map(ENCODINGS);
+
+/** Encoding list for the CSV toolbar: Auto (with what was detected), then each encoding. */
+function encodingChoices(info) {
+  const i = info || {};
+  const auto = i.encodingAuto !== false;
+  const detected = auto && i.encoding ? ` (${ENCODING_LABEL.get(i.encoding) || i.encoding})` : '';
+  const list = [{ value: 'auto', label: 'Auto' + detected }];
+  for (const [value, label] of ENCODINGS) list.push({ value, label });
+  return { choices: list, selected: auto ? 'auto' : (ENCODING_LABEL.has(i.encoding) ? i.encoding : 'auto') };
+}
+
 const JSON_TYPES = new Set(['json', 'struct', 'list', 'map']);
 
 /**
@@ -211,4 +230,4 @@ function emptyTableText(fileSize, format) {
   return format === 'excel' ? 'This sheet has no cells with data.' : 'This file has no rows or columns.';
 }
 
-module.exports = { emptyTableText, fitWidth, delimiterName, delimiterChoices, cellText, cellCaption, visibleColumns, columnLefts, statsRows, gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };
+module.exports = { emptyTableText, fitWidth, delimiterName, delimiterChoices, encodingChoices, ENCODINGS, cellText, cellCaption, visibleColumns, columnLefts, statsRows, gutterWidth, scrollToRow, rowToScroll, pagesFor, normSel, inSel, autoWidth, nextSort, formatBytes, filtersFromMeta, viewState, restoreView, MAX_BODY_PX };

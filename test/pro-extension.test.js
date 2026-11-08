@@ -101,11 +101,12 @@ test('Pro on: the palette shows the license commands and an unlicensed webview g
   assert.deepStrictEqual(pro, { type: 'pro', enabled: true, licensed: false, plan: null, expires: null });
   p.onMsg({ type: 'openProPage' });
   assert.deepStrictEqual(calls.external, [testConfig.PRO_URL]);
+  // 0.4: stats run without a license (the SQL filter, stats and export are free).
   const from = p.sent.length;
   p.onMsg({ type: 'stats' });
-  p.onMsg({ type: 'export' });
-  const errs = await p.until(m => m.type === 'error' && m.code === 'PRO', from);
-  assert.match(errs.message, /Pro feature/);
+  const st = await p.until(m => m.type === 'stats', from);
+  assert.ok(st.rows > 0);
+  assert.ok(!p.sent.slice(from).some(m => m.type === 'error' && m.code === 'PRO'));
 });
 
 test('entering a key: bad keys are refused, a good key is stored in SecretStorage and unlocks open tables', async t => {

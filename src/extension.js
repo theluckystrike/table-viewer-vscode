@@ -132,7 +132,7 @@ class TableEditorProvider {
       const stat = await vscode.workspace.fs.stat(uri);
       const limit = (format === 'excel' ? opts.maxExcelSizeMB : opts.maxFileSizeMB) * 1024 * 1024;
       if (stat.size > limit) throw new Error(`This remote file is ${(stat.size / 1048576).toFixed(0)} MB. Files that are not on disk are read whole, and the limit is ${Math.round(limit / 1048576)} MB.`);
-      return { bytes: await vscode.workspace.fs.readFile(uri) };
+      return { bytes: await vscode.workspace.fs.readFile(uri), name: uri.path };
     };
 
     // Read the file again in the same worker. Sort, filters and the sheet carry over (see protocol.reload).
@@ -227,7 +227,7 @@ class TableEditorProvider {
 
     const onCopy = async msg => {
       await vscode.env.clipboard.writeText(msg.text || '');
-      const fmt = String(msg.format).toUpperCase();
+      const fmt = msg.format === 'md' ? 'Markdown' : String(msg.format).toUpperCase();
       const note = msg.truncated ? ` The selection was cut to the first ${msg.rows.toLocaleString('en-US')} rows (tableViewer.maxCopyRows).` : '';
       toWebview({ type: 'copied', rows: msg.rows, format: msg.format, truncated: !!msg.truncated });
       if (msg.truncated) vscode.window.showWarningMessage(`Copied ${msg.rows.toLocaleString('en-US')} rows as ${fmt}.${note}`);
@@ -312,6 +312,7 @@ function savedCsvOptions(context, key) {
   const out = {};
   if (typeof o.delimiter === 'string') out.delimiter = o.delimiter;
   if (typeof o.header === 'boolean') out.header = o.header;
+  if (typeof o.encoding === 'string') out.encoding = o.encoding;
   return out;
 }
 
@@ -320,7 +321,11 @@ function saveCsvOptions(context, key, msg) {
   if (!context.workspaceState) return;
   const all = { ...(context.workspaceState.get(CSV_OPTIONS_KEY) || {}) };
   delete all[key];
-  if (msg.delimiter !== 'auto' || msg.header === false) all[key] = { delimiter: msg.delimiter, header: msg.header };
+  const enc = typeof msg.encoding === 'string' && msg.encoding !== 'auto' ? msg.encoding : null;
+  if (msg.delimiter !== 'auto' || msg.header === false || enc) {
+    all[key] = { delimiter: msg.delimiter, header: msg.header };
+    if (enc) all[key].encoding = enc;
+  }
   const keys = Object.keys(all);
   for (let i = 0; i < keys.length - CSV_OPTIONS_MAX; i++) delete all[keys[i]];
   context.workspaceState.update(CSV_OPTIONS_KEY, all);
@@ -436,6 +441,7 @@ function activate(context) {
     }),
     vscode.commands.registerCommand('tableViewer.copySelectionAsCsv', () => activePanel && activePanel.copy('csv')),
     vscode.commands.registerCommand('tableViewer.copySelectionAsJson', () => activePanel && activePanel.copy('json')),
+    vscode.commands.registerCommand('tableViewer.copySelectionAsMarkdown', () => activePanel && activePanel.copy('md')),
     vscode.commands.registerCommand('tableViewer.enterLicenseKey', () => enterLicenseKey(context)),
     vscode.commands.registerCommand('tableViewer.removeLicenseKey', () => removeLicenseKey(context)),
     vscode.commands.registerCommand('tableViewer.openWalkthrough', () =>

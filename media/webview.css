@@ -82,3 +82,10 @@ body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size
 .qerr { color: var(--vscode-errorForeground, #f14c4c); max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statspanel { max-height: 40vh; overflow: auto; padding: 8px 10px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.3)); flex: none; }
 .statspanel td.num { text-align: right; font-variant-numeric: tabular-nums; }
+/* Freeze first column: sticky after the row-number gutter, opaque so the cells under it are hidden */
+.cell.frozen { position: sticky; z-index: 2; background: var(--vscode-editor-background); box-shadow: 1px 0 0 var(--vscode-panel-border, rgba(128,128,128,.45)); }
+.row:nth-child(even) .cell.frozen { background: var(--vscode-editor-background); background-image: linear-gradient(color-mix(in srgb, var(--vscode-foreground) 4%, transparent), color-mix(in srgb, var(--vscode-foreground) 4%, transparent)); }
+.row .cell.frozen.sel { background: var(--vscode-editor-selectionBackground); background-image: none; }
+.hcell.frozen, .fcell.frozen { z-index: 3; }
+.btn.toggle.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.cellformula { padding: 0 10px 4px; font-family: var(--vscode-editor-font-family); font-size: 12px; color: var(--vscode-charts-purple, #b180d7); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }

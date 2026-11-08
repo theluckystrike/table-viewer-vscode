@@ -1,5 +1,7 @@
 # Table Viewer Pro
 
+0.4.0 (2026-11-08): the SQL filter, export and column stats are free for everyone and always shown (the listing promises no paywall). Only the larger default limits remain in the Pro list, and the switch stays off. This file is not in the VSIX.
+
 Status: the code is in place, and the switch is off. `PRO_ENABLED` is `false` in `src/config.js`, so the shipped build has no badge, no Pro buttons and no license command in the palette, and every limit works as in 0.1.0. Turn it on only after the Paddle checkout link works.
 
 ## What Pro adds

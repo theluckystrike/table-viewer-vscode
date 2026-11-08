@@ -32,7 +32,7 @@ async function tableToText(source, format, options, maxRows) {
     const parts = [];
     let rows = 0, cut = false;
     for (const name of res.info.sheets) {
-      const t = name === res.info.activeSheet ? res.table : res.loadSheet(name).table;
+      const t = name === res.info.activeSheet ? res.table : (await res.loadSheet(name)).table;
       const one = tableCsv(t, limit);
       rows += one.rows;
       cut = cut || one.cut;

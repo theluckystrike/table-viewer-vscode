@@ -254,4 +254,8 @@ test('rating: an empty or unreadable file never counts as a good open; a header-
   assert.strictEqual(await counts(file('head.csv', 'a,b,c\n'), 'csv'), true);
   assert.strictEqual(await counts(file('data.csv', 'a,b\n1,2\n'), 'csv'), true);
   assert.strictEqual(opensWithData({ type: 'error', message: 'x' }), false);
+  // VER10: a preview meta (streaming reader, loading true) never counts; only the finished load does
+  assert.strictEqual(opensWithData({ type: 'meta', loading: true, columns: [{ name: 'a' }] }), false);
+  assert.strictEqual(opensWithData({ type: 'meta', loading: false, columns: [{ name: 'a' }] }), true);
+  assert.strictEqual(opensWithData({ type: 'meta', loading: false, columns: [] }), false);
 });

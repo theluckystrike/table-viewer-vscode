@@ -455,8 +455,11 @@ function deactivate() {}
  * A table with at least one column counts as a good open for the rating ask. With no columns the view shows
  * "This file is empty", "no rows or columns" or an error, and the ask must not come next to that note.
  */
+// A good open is the meta of a finished load (loading false) with at least one column. The streaming reader
+// first sends a preview meta (loading true); that one does not count, because the full read can still fail
+// (VER10: a damaged 2 MB workbook showed 'could not be read' after its preview had already counted and asked).
 function opensWithData(msg) {
-  return !!(msg && msg.type === 'meta' && Array.isArray(msg.columns) && msg.columns.length > 0);
+  return !!(msg && msg.type === 'meta' && !msg.loading && Array.isArray(msg.columns) && msg.columns.length > 0);
 }
 
 module.exports = {

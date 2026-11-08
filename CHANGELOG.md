@@ -6,6 +6,7 @@
 - The short description now starts with what the name does not say: free with no paywall, and it opens 1M-row CSV with formulas, filter and SQL.
 - A brighter icon with the file type on it, easier to spot in the Extensions view.
 - The viewer footer now starts with Rate, then More free viewers, Sponsor and Hide. The rating question comes after 2 files that opened without an error in 2 sessions at least 4 hours apart.
+- A large workbook now counts as opened only when all of its rows are read. Before, the first rows counted, so a damaged workbook could ask for a rating before its error showed.
 
 ## 0.4.0 (2026-11-08)
 

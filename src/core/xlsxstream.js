@@ -27,6 +27,11 @@ const MAX_COLS = 16384; // Excel's column limit (XFD). Cells beyond it are ignor
 const TRUST_DIM_WIDTH = 4096; // a <dimension> wider than this does not pre-size rows (hostile/odd files)
 const READ_CHUNK = 1 << 20; // bytes per read from the file
 const INFLATE_CHUNK = 256 * 1024; // bytes per inflated chunk (small first chunk = fast preview)
+// The scanners keep the unfinished tail of a chunk (a row, a shared string, the sheet head) and join it to the
+// next chunk. A tail that keeps growing is copied again on every chunk, so one huge row (a 300 MB cell) would
+// cost gigabytes of copies. Past this size the workbook goes to SheetJS instead (as in 0.3.3).
+const MAX_CARRY = 8 * MB;
+const carryLimit = (buf, what) => { if (buf && buf.length > MAX_CARRY) throw unsupported(`${what} is larger than ${MAX_CARRY / MB} MB`); return buf; };
 const DEFAULTS = {
   maxInflatedMB: 4096, // cap on the inflated size of any one ZIP part
   maxSharedStringChars: 512 * 1024 * 1024, // cap on total characters in sharedStrings.xml
@@ -642,7 +647,7 @@ async function readSharedStrings(src, entry, o) {
       sst.push(text);
       if (sst.length > o.maxSharedStrings) throw tooBig('too many shared strings');
     }
-    carry = p < buf.length ? Buffer.from(buf.subarray(p)) : null;
+    carry = carryLimit(p < buf.length ? Buffer.from(buf.subarray(p)) : null, 'one shared string');
   }
   return sst;
 }
@@ -1080,9 +1085,9 @@ async function readSheet(sourceDesc, size0, mtime0, book, name, opts, o) {
           if (tag) { checkRoot(tag, 'worksheet', 'worksheet'); rootSeen = true; } else if (buf.length > 64 * 1024) throw fail('Damaged worksheet XML (no root element)');
         }
         const sd = buf.indexOf(N_SD);
-        if (sd < 0) { carry = buf; continue; }
+        if (sd < 0) { carry = carryLimit(buf, 'the worksheet head'); continue; }
         const gt = buf.indexOf(62, sd);
-        if (gt < 0) { carry = buf; continue; }
+        if (gt < 0) { carry = carryLimit(buf, 'the worksheet head'); continue; }
         parseHead(buf.toString('utf8', 0, sd));
         if (buf[gt - 1] === 47) { finished = true; break; } // <sheetData/>
         inData = true;
@@ -1095,7 +1100,7 @@ async function readSheet(sourceDesc, size0, mtime0, book, name, opts, o) {
         if (!parseRows(buf, pos, last + 6)) { finished = true; break; }
         pos = last + 6;
       }
-      if (pos < buf.length) carry = Buffer.from(buf.subarray(pos)); // copy: do not pin the whole chunk
+      if (pos < buf.length) carry = carryLimit(Buffer.from(buf.subarray(pos)), 'one row'); // copy: do not pin the whole chunk
     }
     if (!finished && !stopped) {
       if (!inData) throw fail('Damaged worksheet XML (no <sheetData>)');

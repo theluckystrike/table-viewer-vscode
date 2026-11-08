@@ -425,3 +425,34 @@ test('extra corpus matches SheetJS where SheetJS can read it', { skip: !CORPUS.e
     assert.strictEqual(r.truncated, true);
   }
 });
+
+test('hostile: one row larger than 8 MB goes to SheetJS (XLSX_STREAM_UNSUPPORTED) without quadratic copying (VER8)', async () => {
+  // 40 MB of one inline string: before the fix the scanner re-copied the growing row on each 256 KB chunk
+  const xml = '<row r="1"><c r="A1" t="inlineStr"><is><t>' + 'A'.repeat(40 * 1024 * 1024) + '</t></is></c><c r="B1"><v>1</v></c></row><row r="2"><c r="A2"><v>2</v></c></row>';
+  const buf = handXlsx({ sheets: [{ name: 'S', xml }] });
+  const ws = await openXlsx({ bytes: buf });
+  const t0 = Date.now();
+  await assert.rejects(ws.readSheet('S'), e => e.code === 'XLSX_STREAM_UNSUPPORTED' && /larger than 8 MB/.test(e.message));
+  assert.ok(Date.now() - t0 < 5000, `took ${Date.now() - t0} ms`);
+  // a big shared string is handled the same way
+  const sbuf = handXlsx({ sheets: [{ name: 'S', xml: '<row r="1"><c r="A1" t="s"><v>0</v></c></row>' }], sst: ['<t>' + 'B'.repeat(10 * 1024 * 1024) + '</t>'] });
+  await assert.rejects(openXlsx({ bytes: sbuf }), e => e.code === 'XLSX_STREAM_UNSUPPORTED');
+  // rows just under the limit still stream
+  const ok = handXlsx({ sheets: [{ name: 'S', xml: '<row r="1"><c r="A1" t="inlineStr"><is><t>' + 'C'.repeat(6 * 1024 * 1024) + '</t></is></c></row>' }] });
+  const r = await (await openXlsx({ bytes: ok })).readSheet('S');
+  assert.strictEqual(r.rows[0][0].length, 6 * 1024 * 1024);
+});
+
+test('loadExcel: a workbook with a 40 MB cell falls back to SheetJS and still opens (VER8)', async () => {
+  const { loadExcel } = require('../src/core/readers');
+  const xml = '<row r="1"><c r="A1" t="inlineStr"><is><t>head</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>' + 'D'.repeat(40 * 1024 * 1024) + '</t></is></c></row>';
+  const pad = require('crypto').randomBytes(2.2 * 1024 * 1024); // over 2 MB on disk, so the streaming reader is tried first
+  const buf = handXlsx({ sheets: [{ name: 'S', xml }], raw: { 'xl/media/pad.bin': pad } });
+  const f = path.join(os.tmpdir(), `ver8-bigcell-${process.pid}.xlsx`);
+  fs.writeFileSync(f, buf);
+  try {
+    assert.ok(fs.statSync(f).size > 2 * 1024 * 1024);
+    const res = await loadExcel({ path: f }, {}, () => {});
+    assert.ok(res.table, 'table');
+  } finally { fs.rmSync(f, { force: true }); }
+});

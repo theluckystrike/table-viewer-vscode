@@ -61,3 +61,7 @@ test('picking an extension opens its Marketplace page and never installs it', as
   assert.ok(opened.includes('https://github.com/theluckystrike'));
   assert.equal(ran.filter((a) => a[0] === 'workbench.extensions.installExtension').length, 0);
 });
+
+test('the extension pack is not a Related row here', () => {
+  assert.ok(!support.relatedProducts(SELF).some((p) => p.id === 'zovo.zovo-file-viewers'));
+});

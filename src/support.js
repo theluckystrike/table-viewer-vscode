@@ -44,7 +44,7 @@ const LIVE = [
   ],
   [
     "zovo.pptx-slide-viewer",
-    "PPTX Viewer & PowerPoint Viewer, PPT Slide Viewer",
+    "PPTX Viewer & PPT Viewer, PowerPoint Viewer & Slideshow",
     "shows PowerPoint slides, thumbnails and speaker notes."
   ],
   [
@@ -59,22 +59,22 @@ const LIVE = [
   ],
   [
     "zovo.sqlite-table-viewer",
-    "SQLite Viewer & DB Viewer, Database Viewer (Read-Only)",
+    "SQLite DB Viewer & SQLite Viewer, Database Viewer (Read-Only)",
     "browses SQLite tables read-only and runs SELECT queries."
   ],
   [
     "zovo.hdf5-netcdf-explorer",
-    "NetCDF Viewer & HDF5 Viewer (NC, H5)",
+    "NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer)",
     "browses groups, attributes and values in HDF5 and NetCDF files and plots slices."
   ],
   [
     "zovo.tensor-viewer",
-    "NPZ Viewer & NPY Viewer, GGUF & Safetensors (NumPy Viewer)",
+    "NPZ Viewer & NPY Viewer, PyTorch, GGUF & Safetensors (NumPy Viewer)",
     "shows NPY, NPZ, Safetensors and GGUF tensors with stats and heatmaps."
   ],
   [
     "zovo.video-preview-with-sound",
-    "MP4 & MOV Viewer, Video Player with Sound",
+    "MP4, MOV & MKV Viewer, Video Player with Sound",
     "plays MP4, MOV, MKV and WebM files with their sound."
   ],
   [
@@ -104,7 +104,7 @@ const LIVE = [
   ],
   [
     "zovo.audio-preview-vscode",
-    "Audio Player & WAV Player (MP3, FLAC, LUFS)",
+    "Audio Player & WAV Player, Music & Wave Viewer (MP3, FLAC)",
     "plays audio files with a waveform, a spectrogram and LUFS loudness."
   ],
   [
@@ -149,7 +149,7 @@ const LIVE = [
   ],
   [
     "zovo.zovo-har-viewer",
-    "HAR Viewer & HAR File Analyzer (HTTP Archive)",
+    "HAR Viewer & HAR File Analyzer (HTTP Archive, Network Log)",
     "opens HAR files from browser DevTools with a timing waterfall, filters and a redacted copy for sharing."
   ],
   [
@@ -159,7 +159,7 @@ const LIVE = [
   ],
   [
     "zovo.zip-archive-explorer",
-    "ZIP Viewer & Archive Viewer (JAR, TAR, GZ)",
+    "ZIP Viewer & Archive Explorer (JAR, TAR, GZ)",
     "browses ZIP, JAR, VSIX, TAR and GZ files, opens entries in tabs and extracts them safely."
   ],
   [
@@ -169,11 +169,74 @@ const LIVE = [
   ],
   [
     "zovo.font-viewer-vscode",
-    "Font Viewer, TTF Viewer, OTF & WOFF Viewer",
+    "Font Viewer, TTF Viewer, OTF & WOFF Viewer, Font Preview",
     "opens TTF, OTF, WOFF, WOFF2 and TTC fonts with a glyph grid, a type tester with variable axes and the license fields."
+  ],
+  [
+    "zovo.mermaid-viewer",
+    "Mermaid Viewer & Mermaid Preview (MMD Diagram, No Sign-In)",
+    "no sign-in, no AI. Zoom, pan and export SVG or PNG. Free Mermaid diagram viewer and Mermaid preview for .mmd files and mermaid blocks in Markdown, works offline."
+  ],
+  [
+    "zovo.zovo-geo-map-viewer",
+    "GeoJSON Viewer, KML Viewer & GPX Viewer (Map Preview, Shapefile)",
+    "offline map with a feature table and GPX elevation profile. GeoJSON viewer, KML viewer and GPX viewer with a map preview in VS Code. Also opens shapefiles (SHP, zipped), KMZ, TopoJSON, WKT and CSV with lat/lon; reprojection from .prj, PNG export. Free, no sign-in."
+  ],
+  [
+    "zovo.zovo-hex-viewer",
+    "Hex Viewer & Binary Viewer, Hex Editor (Large Files)",
+    "opens files of any size (4 GB and more) in under a second. Hex viewer, binary viewer and hex editor for VS Code: go to offset, find hex or text, copy as C array, Python bytes or base64, a data inspector, and byte editing with undo. Free, no sign-in, works offline."
+  ],
+  [
+    "zovo.zovo-svg-viewer",
+    "SVG Viewer & SVG Preview (Zoom, PNG Export)",
+    "live preview beside the editor, zoom at the cursor, scripts never run. SVG preview and SVG viewer for VS Code: pan, viewBox outline, checkerboard or custom background, sprite sheet grid for <symbol>, .svgz, and PNG export at 1x to 8x. Free, offline."
   ]
 ];
-const QUEUED = [];
+const QUEUED = [
+  [
+    "zovo.code-screenshot",
+    "Code Screenshot & Code Snapshot (Copy Code as Image, PNG/SVG)",
+    "code screenshot and code snapshot in one key: select code, press Cmd+Alt+C (Shift+Alt+C) and a PNG of it is on your clipboard, in your editor theme, font and colors. Save PNG or SVG, line numbers, highlights, window frame, backgrounds. Free, no sign-in, works offline.",
+    "https://github.com/theluckystrike/code-screenshot-vscode"
+  ],
+  [
+    "zovo.rst-preview",
+    "RST Preview & reStructuredText Preview (RST Viewer, No Python)",
+    "rST preview and reStructuredText preview for VS Code with no Python, no Sphinx and no setup. Live preview with scroll sync, grid and list tables, admonitions, code colors, math, images, includes, outline and HTML export. Free, works offline.",
+    "https://github.com/theluckystrike/rst-preview-vscode"
+  ],
+  [
+    "zovo.swagger-openapi-viewer",
+    "Swagger Viewer & OpenAPI Viewer (OpenAPI Preview, 3.1, $ref)",
+    "swagger viewer and OpenAPI preview for VS Code. Live Swagger UI or reference layout for OpenAPI 3.1, 3.0 and Swagger 2.0 in YAML or JSON, with external $ref across files, a problem list with line numbers and copyable text. No server, no port, no sign-in, works offline.",
+    "https://github.com/theluckystrike/swagger-openapi-viewer-vscode"
+  ],
+  [
+    "zovo.vcd-waveform-viewer",
+    "VCD Viewer & Waveform Viewer (Verilog, No Signal Limit)",
+    "vCD viewer and waveform viewer for Verilog, SystemVerilog and VHDL simulations. Free with no signal limit: signal tree with search, cursor and two markers, bus grouping, hex, binary, signed and ASCII radix, and VCD files of 1 GB and more. A GTKWave-style viewer inside VS Code that works offline.",
+    "https://github.com/theluckystrike/vcd-viewer-vscode"
+  ],
+  [
+    "zovo.xmind-mind-map-viewer",
+    "XMind Viewer & Mind Map Viewer (XMind 8, 2020+)",
+    "xMind viewer and mind map viewer for VS Code. Opens XMind 2020+, XMind Zen and XMind 8 files with every sheet as a tab, relationships, boundaries, summaries, markers, notes, pictures and LaTeX equations. Also opens FreeMind .mm and OPML. Search, collapse, PNG, SVG and Markdown export. Free, works offline.",
+    "https://github.com/theluckystrike/xmind-viewer-vscode"
+  ],
+  [
+    "zovo.zovo-html-preview",
+    "HTML Preview & HTML Viewer (Live, CSS and Images, Offline)",
+    "free HTML preview and HTML viewer beside your editor. Linked CSS, JS and images load, it updates as you type, and nothing is sent anywhere. No sign-in, no server, works offline.",
+    "https://github.com/theluckystrike/html-preview-vscode"
+  ],
+  [
+    "zovo.zovo-pcap-viewer",
+    "PCAP Viewer & PCAPNG Viewer (Packet Capture Analyzer)",
+    "pCAP viewer and PCAPNG viewer for VS Code: a packet capture analyzer with a packet list, protocol tree and linked hex pane, display filters, follow TCP stream, conversations and endpoints. Opens .pcap.gz and 1 GB captures. Pure JS, nothing to install (no Wireshark or sharkd). Free, no sign-in, works offline.",
+    "https://github.com/theluckystrike/pcap-viewer-vscode"
+  ]
+];
 
 // [id, id, weight]. Products that people use together. The list for one product shows its closest pairs first
 // (live ones before queued ones). Weights come from how often rival listings name both formats (out/I2.md
@@ -362,15 +425,13 @@ function footerHtml(prefix, show, extraClass) {
   const c = commandIds(prefix);
   const settingArg = encodeURIComponent(JSON.stringify([`${prefix}.${SETTING}`]));
   const cls = extraClass ? `zovo-support ${extraClass}` : 'zovo-support';
+  const sep = '<span class="zovo-sep" aria-hidden="true">·</span>';
+  // Order: Rate · More free viewers · Sponsor · PayPal (only when set) · Hide. Rate comes first: ratings help people find the extension.
   return `<div class="${cls}" id="zovo-support">`
-    + `<a href="command:${c.sponsor}" title="Open the GitHub Sponsors page">Sponsor</a>`
-    + '<span class="zovo-sep" aria-hidden="true">·</span>'
-    + (paypalUrl() ? `<a href="${paypalUrl()}" title="Support the developer on PayPal">PayPal</a>`
-      + '<span class="zovo-sep" aria-hidden="true">·</span>' : '')
-    + `<a href="command:${c.more}" title="Other free extensions by Zovo">More free viewers</a>`
-    + '<span class="zovo-sep" aria-hidden="true">·</span>'
-    + (reviewUrl(SELF_ID) ? `<a href="${reviewUrl(SELF_ID)}" title="Rate or review this extension on the Marketplace">Rate</a>`
-      + '<span class="zovo-sep" aria-hidden="true">·</span>' : '')
+    + (reviewUrl(SELF_ID) ? `<a href="${reviewUrl(SELF_ID)}" title="Rate or review this extension on the Marketplace">Rate</a>` + sep : '')
+    + `<a href="command:${c.more}" title="Other free extensions by Zovo">More free viewers</a>` + sep
+    + `<a href="command:${c.sponsor}" title="Open the GitHub Sponsors page">Sponsor</a>` + sep
+    + (paypalUrl() ? `<a href="${paypalUrl()}" title="Support the developer on PayPal">PayPal</a>` + sep : '')
     + `<a href="command:workbench.action.openSettings?${settingArg}" title="Hide these links">Hide</a>`
     + '</div>';
 }
@@ -380,7 +441,7 @@ function footerMarkdown(prefix) {
   const c = commandIds(prefix);
   const rate = reviewUrl(SELF_ID);
   const pp = paypalUrl();
-  return `[Sponsor](command:${c.sponsor})` + (pp ? ` · [PayPal](${pp})` : '') + ` · [More free viewers](command:${c.more})` + (rate ? ` · [Rate](${rate})` : '');
+  return (rate ? `[Rate](${rate}) · ` : '') + `[More free viewers](command:${c.more})` + ` · [Sponsor](command:${c.sponsor})` + (pp ? ` · [PayPal](${pp})` : '');
 }
 
 function showLinks(vscode, prefix) {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1 (2026-11-08)
+
+- The Marketplace name is now "XLSX Viewer & CSV Preview for Excel, XLS & Parquet" (was "XLSX Viewer for Excel, CSV & Parquet"), so more searches find it. The extension ID, settings and commands stay the same.
+- The short description now starts with what the name does not say: free with no paywall, and it opens 1M-row CSV with formulas, filter and SQL.
+- A brighter icon with the file type on it, easier to spot in the Extensions view.
+- The viewer footer now starts with Rate, then More free viewers, Sponsor and Hide. The rating question comes after 2 files that opened without an error in 2 sessions at least 4 hours apart.
+
 ## 0.4.0 (2026-11-08)
 
 - Big Excel files: .xlsx and .xlsm workbooks of 2 MB and more are read by a new streaming reader. A 48 MB workbook with 660,000 rows shows its first rows in 0.5 s and loads in 3.4 s in real VS Code (0.3.3: nothing for 10 s, loaded in 9.5 s). The extension host used 1.3 GB for it and now uses about 0.5 GB. Workbooks the new reader can't read still open with SheetJS, as before. Streamed workbooks follow `tableViewer.maxFileSizeMB` (512 MB) instead of the 50 MB Excel limit.

@@ -664,7 +664,10 @@ async function loadExcel(source, options, onPreview, sheetName) {
     try {
       return await loadExcelStream(source, options, onPreview, sheetName, size);
     } catch (e) {
-      if (e && e.code === 'XLSX_TOO_BIG') throw Object.assign(new Error(`This workbook is too large to show: ${e.message}`), { code: 'TOO_LARGE' });
+      // The cell cap counts dense rows (rows x widest row). 0.3.3 read such sheets with SheetJS when the file was
+      // within maxExcelSizeMB (a stray value in column XFD on a few thousand rows), so do the same here.
+      const cellCap = e && e.code === 'XLSX_TOO_BIG' && /cells/.test(e.message) && size <= o.maxExcelSizeMB * MB;
+      if (e && e.code === 'XLSX_TOO_BIG' && !cellCap) throw Object.assign(new Error(`This workbook is too large to show: ${e.message}`), { code: 'TOO_LARGE' });
       // Not a plain .xlsx the streaming reader handles (Strict OOXML, encrypted, damaged): SheetJS decides.
     }
   }

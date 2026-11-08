@@ -456,3 +456,20 @@ test('loadExcel: a workbook with a 40 MB cell falls back to SheetJS and still op
     assert.ok(res.table, 'table');
   } finally { fs.rmSync(f, { force: true }); }
 });
+
+test('loadExcel: a sheet over the dense cell cap but within maxExcelSizeMB opens through SheetJS, as in 0.3.3 (VER8)', async () => {
+  const { loadExcel } = require('../src/core/readers');
+  let xml = '';
+  for (let r = 1; r <= 40; r++) xml += `<row r="${r}"><c r="A${r}"><v>${r}</v></c><c r="XFD${r}"><v>${r}</v></c></row>`;
+  const pad = require('crypto').randomBytes(2.2 * 1024 * 1024);
+  const buf = handXlsx({ sheets: [{ name: 'S', xml }], raw: { 'xl/media/pad.bin': pad } });
+  const f = path.join(os.tmpdir(), `ver8-wide-${process.pid}.xlsx`);
+  fs.writeFileSync(f, buf);
+  try {
+    // 40 rows x 16,384 columns = 655,360 cells: over a cap of 100,000, so the streaming reader stops; SheetJS reads it
+    const ws = await openXlsx({ path: f }, { maxCells: 100000 });
+    await assert.rejects(ws.readSheet('S'), e => e.code === 'XLSX_TOO_BIG' && /cells/.test(e.message));
+    const res = await loadExcel({ path: f }, {}, () => {});
+    assert.ok(res.table, 'table');
+  } finally { fs.rmSync(f, { force: true }); }
+});

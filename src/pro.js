@@ -7,10 +7,14 @@
 const FREE_FEATURES = Object.freeze([
   'open-parquet', 'open-excel', 'open-csv', 'sort', 'filter', 'copy-csv', 'copy-tsv', 'copy-json', 'copy-md', 'parquet-schema',
   'sql-filter', 'export', 'column-stats', 'formulas',
+  // 0.5: the Query panel on this file and its sheets (SELECT, GROUP BY, JOIN of sheets), history, save as CSV/TSV/JSON.
+  'sql-query', 'query-history', 'join-sheets',
 ]);
 
 const PRO_FEATURES = Object.freeze([
-  { id: 'large-files', title: 'Files past the free limits (more rows, bigger CSV and Excel files)' },
+  { id: 'large-files', title: 'Files past the free limits (more rows, bigger CSV and Excel files), and queries over the whole file' },
+  { id: 'query-join-files', title: 'JOIN with other CSV, Excel and Parquet files of the workspace' },
+  { id: 'save-parquet', title: 'Save a result or the view as a Parquet file' },
 ]);
 
 // Free tier caps, used only when Pro is switched on. They equal the 0.1 defaults, so a free user
@@ -24,16 +28,29 @@ const PRO_DEFAULTS = Object.freeze({ maxRows: 5000000, maxFileSizeMB: 2048, maxE
  * @param {{PRO_ENABLED:boolean}} config
  * @param {{valid:boolean, license?:object}|null} licenseCheck result of verifyLicense, or null
  */
-function entitlement(config, licenseCheck) {
+function entitlement(config, licenseCheck, sponsorsPro = false) {
   const enabled = !!(config && config.PRO_ENABLED);
-  const licensed = enabled && !!(licenseCheck && licenseCheck.valid);
+  const keyOk = enabled && !!(licenseCheck && licenseCheck.valid);
+  const licensed = keyOk || (enabled && !!sponsorsPro);
   return {
     enabled,
     licensed,
-    plan: licensed ? licenseCheck.license.plan : null,
-    expires: licensed ? licenseCheck.license.expires : null,
-    email: licensed ? licenseCheck.license.email : null,
+    via: keyOk ? 'key' : licensed ? 'github-sponsors' : null,
+    plan: keyOk ? licenseCheck.license.plan : licensed ? 'zovo-pro' : null,
+    expires: keyOk ? licenseCheck.license.expires : null,
+    email: keyOk ? licenseCheck.license.email : null,
   };
+}
+
+/**
+ * May this install use a feature right now? Free features always. A Pro feature is free for everyone while the
+ * Pro switch is off (config.PRO_ENABLED false, the shipped state), and needs a license once it is on.
+ */
+function canUse(featureId, ent) {
+  if (FREE_FEATURES.includes(featureId)) return true;
+  if (!PRO_FEATURES.some(f => f.id === featureId)) return false;
+  if (!ent || !ent.enabled) return true;
+  return !!ent.licensed;
 }
 
 /** True when a feature may run. With Pro switched off, Pro features stay hidden and off. */
@@ -67,4 +84,4 @@ function effectiveLimits(settings, ent, userSet = []) {
   return out;
 }
 
-module.exports = { FREE_FEATURES, PRO_FEATURES, FREE_LIMITS, PRO_DEFAULTS, entitlement, isEnabled, effectiveLimits };
+module.exports = { FREE_FEATURES, PRO_FEATURES, FREE_LIMITS, PRO_DEFAULTS, entitlement, isEnabled, canUse, effectiveLimits };

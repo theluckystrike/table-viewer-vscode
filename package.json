@@ -1,8 +1,8 @@
 {
   "name": "table-viewer-vscode",
   "displayName": "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer (XLS, CSV Preview)",
-  "description": "Free, no paywall. 1M-row CSV, formulas, filter, SQL. XLSX viewer, Excel viewer and CSV viewer with no ads and no license banner: big Excel files open fast, with sheets, sort and copy as Markdown. Also XLS, ODS and Parquet.",
-  "version": "0.4.2",
+  "description": "Free, no paywall. XLSX viewer, Excel viewer and CSV viewer with SQL: query CSV, Excel and Parquet with GROUP BY and JOIN, even a big CSV of several GB. 1M rows open fast, with sheets, formulas, filter, sort and copy as Markdown. No ads, no license banner. Also XLS and ODS.",
+  "version": "0.5.0",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -33,23 +33,23 @@
     "csv",
     "parquet",
     "xls",
-    "xlsm",
-    "ods",
-    "tsv",
     "excel formulas",
     "markdown table",
     "large csv",
     "csv preview",
-    "xlsx diff",
-    "csv diff",
     "excel compare",
     "table viewer",
     "data viewer",
     "sql",
-    "dataframe",
-    "shift_jis",
-    "encoding",
-    "no paywall"
+    "no paywall",
+    "query csv",
+    "csv query",
+    "csv sql",
+    "excel sql",
+    "sql on csv",
+    "big csv",
+    "group by",
+    "csv join"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [],
@@ -128,6 +128,12 @@
         "category": "Table Viewer"
       },
       {
+        "command": "tableViewer.newQuery",
+        "title": "New SQL Query on This File",
+        "category": "Table Viewer",
+        "icon": "$(database)"
+      },
+      {
         "command": "tableViewer.copySelectionAsCsv",
         "title": "Copy Selection as CSV",
         "category": "Table Viewer"
@@ -145,6 +151,11 @@
       {
         "command": "tableViewer.openWalkthrough",
         "title": "Get Started",
+        "category": "Table Viewer"
+      },
+      {
+        "command": "tableViewer.unlockWithSponsors",
+        "title": "Unlock Zovo Pro with GitHub Sponsors",
         "category": "Table Viewer"
       },
       {
@@ -179,6 +190,11 @@
           "command": "tableViewer.compareWithHead",
           "when": "activeCustomEditorId =~ /^tableViewer\\./ && resourceScheme == file",
           "group": "navigation@30"
+        },
+        {
+          "command": "tableViewer.newQuery",
+          "when": "activeCustomEditorId =~ /^tableViewer\\./",
+          "group": "navigation@29"
         }
       ],
       "explorer/context": [
@@ -222,6 +238,14 @@
         {
           "command": "tableViewer.compareWithHead",
           "when": "activeCustomEditorId =~ /^tableViewer\\./ || resourceExtname =~ /^\\.(csv|tsv|tab|psv|parquet|pq|xlsx|xlsm|xlsb|xls|ods)$/"
+        },
+        {
+          "command": "tableViewer.newQuery",
+          "when": "activeCustomEditorId =~ /^tableViewer\\./"
+        },
+        {
+          "command": "tableViewer.unlockWithSponsors",
+          "when": "tableViewer.proEnabled"
         }
       ],
       "scm/resourceState/context": [
@@ -275,6 +299,13 @@
           "minimum": 100,
           "description": "Compare with Git HEAD and Compare with Another Table File: compare at most this many rows per table (per sheet for Excel)."
         },
+        "tableViewer.queryMemoryMB": {
+          "type": "number",
+          "default": 512,
+          "minimum": 64,
+          "maximum": 8192,
+          "description": "Query panel: the most memory one query may keep (groups, sort buffer, the result and the files read for a JOIN), in MB. A bigger query stops with a message. Rows that are only scanned (a 5 GB CSV for a GROUP BY) do not count."
+        },
         "tableViewer.askForRating": {
           "type": "boolean",
           "default": true,
@@ -313,6 +344,17 @@
               "image": "images/screenshot.png",
               "altText": "A 1,000,000 row Parquet file open in Table Viewer, sorted by fare, with the type of each column in its header."
             }
+          },
+          {
+            "id": "query",
+            "title": "Query the file with SQL",
+            "description": "Click Query in the toolbar and run a SELECT on the file: GROUP BY with COUNT, SUM and AVG, ORDER BY, LIMIT, CASE, dates, and JOIN with other sheets or with other CSV, Excel and Parquet files by path. Big CSV files are read as a stream. The result opens in the same grid, and Save result writes CSV, TSV, JSON Lines or Parquet.\n[Open a data file](command:workbench.action.quickOpen?%5B%22.csv%22%5D)",
+            "media": {
+              "markdown": "walkthrough/query.md"
+            },
+            "completionEvents": [
+              "onCommand:tableViewer.newQuery"
+            ]
           },
           {
             "id": "copy",

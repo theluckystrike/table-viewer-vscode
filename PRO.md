@@ -1,5 +1,15 @@
 # Table Viewer Pro
 
+0.5.0 (2026-11-09, DBUILD6): the Query panel is free (SELECT, GROUP BY, HAVING, ORDER BY, functions, JOIN of sheets of the same workbook, history, Save result as CSV/TSV/JSON/JSON Lines). Three paid candidates are wired and switched off (`PRO_ENABLED` stays `false`, so they are free in the shipped build):
+
+| Pro id | What | With the switch on and no license |
+|---|---|---|
+| `large-files` | queries that read the whole file when the grid holds only part of it (query-only mode) | the query runs on the loaded rows and says so |
+| `query-join-files` | JOIN with other CSV, Excel and Parquet files of the workspace | a message: sheets of this workbook and this file are free |
+| `save-parquet` | Save result / Export as Parquet | the Parquet choice says "(Pro)" and explains; CSV, TSV, JSON, JSON Lines stay free |
+
+`pro.canUse(id, ent)` is the gate: free ids always, Pro ids free while the switch is off, licensed when on. Unlock rails when the switch is on: the offline Ed25519 key (`src/license.js`) and GitHub Sponsors (`src/sponsors.js`, copied unchanged from `factory/sprint/license/sponsors.js`, sku `xlsx-pro`, command "Table Viewer: Unlock Zovo Pro with GitHub Sponsors"). With the switch off the Sponsors rail is never created, so there is no GitHub call and no sign-in.
+
 0.4.0 (2026-11-08): the SQL filter, export and column stats are free for everyone and always shown (the listing promises no paywall). Only the larger default limits remain in the Pro list, and the switch stays off. This file is not in the VSIX.
 
 Status: the code is in place, and the switch is off. `PRO_ENABLED` is `false` in `src/config.js`, so the shipped build has no badge, no Pro buttons and no license command in the palette, and every limit works as in 0.1.0. Turn it on only after the Paddle checkout link works.

@@ -7,7 +7,9 @@ const { validateWebviewMessage } = require('./core/protocol');
 const { formatFromPath } = require('./core/formats');
 const config = require('./config');
 const { verifyLicense, normalizeKey } = require('./license');
-const { entitlement, effectiveLimits, isEnabled } = require('./pro');
+const { entitlement, effectiveLimits, isEnabled, canUse } = require('./pro');
+const { createSponsorsRail } = require('./sponsors');
+const { resolveQueryFiles, pushHistory, historyFor } = require('./queryhost');
 const { createRatingPrompt } = require('./rate');
 const { registerSupport, commandUris, showLinks } = require('./support');
 const { registerCompare } = require('./compare');
@@ -25,6 +27,9 @@ let activePanel = null;
 // License state. Checked offline against the public key in config; loaded from SecretStorage on activate.
 let licenseCheck = null;
 let licenseLoaded = Promise.resolve();
+// GitHub Sponsors unlock (Zovo Pro). Created only when the Pro switch is on, so the shipped build has no rail at all.
+let sponsors = null;
+const SPONSORS_SKU = 'xlsx-pro';
 
 function settings() {
   const c = vscode.workspace.getConfiguration('tableViewer');
@@ -33,6 +38,7 @@ function settings() {
     maxFileSizeMB: c.get('maxFileSizeMB', 512),
     maxExcelSizeMB: c.get('maxExcelSizeMB', 50),
     maxCopyRows: c.get('maxCopyRows', 100000),
+    queryMemoryMB: c.get('queryMemoryMB', 512),
     excelFormats: c.get('excelFormats', true) !== false,
   };
 }
@@ -57,7 +63,7 @@ function userSetKeys() {
 function currentEntitlement() {
   // Re-check the stored key each time, so a yearly key stops on its end date without a restart.
   if (licenseCheck && licenseCheck.key) licenseCheck = { ...verifyLicense(licenseCheck.key, { publicKey: config.LICENSE_PUBLIC_KEY }), key: licenseCheck.key };
-  return entitlement(config, licenseCheck);
+  return entitlement(config, licenseCheck, !!(sponsors && sponsors.isPro(SPONSORS_SKU)));
 }
 
 /** What the webview needs to draw the Pro badge and buttons. Nothing when Pro is switched off. */
@@ -79,6 +85,7 @@ const EXPORT_CHOICES = [
   { id: 'tsv', label: 'TSV', description: 'tab-separated, with a header row' },
   { id: 'json', label: 'JSON', description: 'one array of objects' },
   { id: 'jsonl', label: 'JSON Lines', description: 'one object per line' },
+  { id: 'parquet', label: 'Parquet', description: 'typed and compressed, for pandas, DuckDB, Spark or this viewer', pro: 'save-parquet' },
 ];
 
 class TableEditorProvider {
@@ -112,6 +119,8 @@ class TableEditorProvider {
     const fileKey = uri.toString();
     if (isText) Object.assign(opts, savedCsvOptions(ctx, fileKey));
     let exportTarget = null;
+    let queryShown = false; // the grid shows a query result (worker meta with info.query)
+    const postHistory = () => toWebview({ type: 'queryHistory', items: historyFor(ctx, fileKey) });
     let worker = null;
     let disposed = false;
     let webviewReady = false;
@@ -169,6 +178,7 @@ class TableEditorProvider {
         if (!counted && opensWithData(msg)) { counted = true; rating.success(); }
         if (msg && msg.type === 'copyResult') return onCopy(msg);
         if (msg && msg.type === 'exportResult') return onExport(msg);
+        if (msg && msg.type === 'meta') queryShown = !!(msg.info && msg.info.query);
         toWebview(msg);
       });
       worker.on('error', e => failHost(`The reader stopped: ${e.message}`));
@@ -185,17 +195,19 @@ class TableEditorProvider {
       if (exportTarget) return proError('An export is already running.');
       let fmt = suggested;
       if (!fmt) {
-        const pick = await vscode.window.showQuickPick(EXPORT_CHOICES, { title: 'Export the rows in view', placeHolder: 'Pick a format' });
+        const items = EXPORT_CHOICES.map(c => ({ ...c, description: c.pro && ent.enabled && !ent.licensed ? `${c.description} (Pro)` : c.description }));
+      const pick = await vscode.window.showQuickPick(items, { title: queryShown ? 'Save the query result' : 'Export the rows in view', placeHolder: 'Pick a format' });
         if (!pick) return undefined;
         fmt = pick.id;
       }
       const choice = EXPORT_CHOICES.find(c => c.id === fmt);
+      if (choice.pro && !canUse(choice.pro, ent)) return proError('Saving as Parquet is a Zovo Pro feature. CSV, TSV, JSON and JSON Lines are free.');
       const base = name.replace(/\.[^.]+$/, '');
       const dir = uri.scheme === 'file' ? vscode.Uri.joinPath(uri, '..') : undefined;
       const target = await vscode.window.showSaveDialog({
         title: `Export ${choice.label}`,
         saveLabel: 'Export',
-        defaultUri: dir ? vscode.Uri.joinPath(dir, `${base}-export.${fmt}`) : undefined,
+        defaultUri: dir ? vscode.Uri.joinPath(dir, `${base}-${queryShown ? 'query' : 'export'}.${fmt}`) : undefined,
         filters: { [choice.label]: [fmt] },
       });
       if (!target || !worker) return undefined;
@@ -233,10 +245,32 @@ class TableEditorProvider {
       if (msg.truncated) vscode.window.showWarningMessage(`Copied ${msg.rows.toLocaleString('en-US')} rows as ${fmt}.${note}`);
     };
 
+    // Query panel: check the files a query names (workspace trust, inside the workspace), keep the history,
+    // and hand the query to the worker. The worker never sees a path the host did not check.
+    const startQuery = async sql => {
+      if (!worker) return;
+      pushHistory(ctx, fileKey, sql);
+      postHistory();
+      let files = {};
+      try {
+        files = await resolveQueryFiles(vscode, uri, sql);
+      } catch (e) {
+        if (e && e.code === 'SQL') { toWebview({ type: 'queryDone', ok: false, error: e.message }); return; }
+        throw e;
+      }
+      const s = settings();
+      worker.postMessage({
+        type: 'query', sql, files, fileName: name,
+        allowStream: canUse('large-files', ent), allowFiles: canUse('query-join-files', ent),
+        memCapMB: Math.max(64, Number(s.queryMemoryMB) || 512), maxResultRows: Math.max(1000, Number(s.maxRows) || 1000000),
+      });
+    };
+
     const state = {
       panel,
       uri,
       copy: format => panel.webview.postMessage({ type: 'requestCopy', format }),
+      openQuery: () => panel.webview.postMessage({ type: 'openQuery' }),
       setPro: next => {
         ent = next;
         if (worker) worker.postMessage({ type: 'entitlement', pro: isEnabled('export', ent) });
@@ -260,6 +294,7 @@ class TableEditorProvider {
         panel.webview.postMessage({ type: 'init', fileName: name, format });
         if (ent.enabled) panel.webview.postMessage(proState(ent));
         while (queue.length) panel.webview.postMessage(queue.shift());
+        panel.webview.postMessage({ type: 'queryHistory', items: historyFor(ctx, fileKey) });
         if (fatal) panel.webview.postMessage(fatal);
         else if (worker) worker.postMessage({ type: 'resync' });
         return;
@@ -280,6 +315,7 @@ class TableEditorProvider {
           .then(() => toWebview({ type: 'copiedText', chars: msg.text.length }), () => {});
         return;
       }
+      if (msg.type === 'query') { startQuery(msg.sql); return; }
       if (msg.type === 'csvOptions' && isText) saveCsvOptions(ctx, fileKey, msg);
       if (!worker) return;
       if (msg.type === 'copy') msg.maxRows = settings().maxCopyRows;
@@ -366,11 +402,29 @@ async function enterLicenseKey(context) {
 
 async function removeLicenseKey(context) {
   if (!config.PRO_ENABLED || !context.secrets) return;
-  const ok = await vscode.window.showWarningMessage('Remove the Table Viewer Pro license key from this machine?', { modal: true }, 'Remove');
+  const ok = await vscode.window.showWarningMessage('Remove the Zovo Pro license key and the GitHub Sponsors unlock from this machine?', { modal: true }, 'Remove');
   if (ok !== 'Remove') return;
   await context.secrets.delete(config.LICENSE_SECRET);
+  if (sponsors) await sponsors.remove();
   setLicense(null);
   vscode.window.showInformationMessage('The license key is removed. You can enter it again at any time.');
+}
+
+/** "Unlock Zovo Pro with GitHub Sponsors": one GitHub sign-in and one question to GitHub, only on this click. */
+async function unlockWithSponsors() {
+  if (!config.PRO_ENABLED || !sponsors) {
+    vscode.window.showInformationMessage('Every feature in this version of the table viewer is free. There is nothing to unlock.');
+    return;
+  }
+  const r = await sponsors.unlock();
+  if (r.reason === 'cancelled') return;
+  if (r.pro) { setLicense(licenseCheck); vscode.window.showInformationMessage('Zovo Pro is on. Thank you.'); return; }
+  if (r.reason === 'not-sponsor' || r.reason === 'below-minimum') {
+    const pick = await vscode.window.showInformationMessage(r.message, 'Open GitHub Sponsors');
+    if (pick) sponsors.openSponsorsPage();
+    return;
+  }
+  vscode.window.showWarningMessage(`${r.message} Nothing changed.`);
 }
 
 /** Toolbar "Compare" button: pick Git HEAD or another file. */
@@ -419,7 +473,11 @@ function activate(context) {
     activeUri: () => (activePanel ? activePanel.uri : null),
   });
   vscode.commands.executeCommand('setContext', 'tableViewer.proEnabled', !!config.PRO_ENABLED);
-  licenseLoaded = loadStoredLicense(context);
+  if (config.PRO_ENABLED && context.secrets) {
+    sponsors = createSponsorsRail({ vscode, context });
+    context.subscriptions.push(sponsors.onDidChange(() => setLicense(licenseCheck)));
+  }
+  licenseLoaded = Promise.all([loadStoredLicense(context), sponsors ? sponsors.ready : null]);
   if (context.secrets && context.secrets.onDidChange) {
     // Another window entered or removed the key.
     context.subscriptions.push(context.secrets.onDidChange(e => {
@@ -444,6 +502,8 @@ function activate(context) {
     vscode.commands.registerCommand('tableViewer.copySelectionAsMarkdown', () => activePanel && activePanel.copy('md')),
     vscode.commands.registerCommand('tableViewer.enterLicenseKey', () => enterLicenseKey(context)),
     vscode.commands.registerCommand('tableViewer.removeLicenseKey', () => removeLicenseKey(context)),
+    vscode.commands.registerCommand('tableViewer.unlockWithSponsors', () => unlockWithSponsors()),
+    vscode.commands.registerCommand('tableViewer.newQuery', () => activePanel && activePanel.openQuery()),
     vscode.commands.registerCommand('tableViewer.openWalkthrough', () =>
       vscode.commands.executeCommand('workbench.action.openWalkthrough', 'zovo.table-viewer-vscode#tableViewer.start', false)),
   );

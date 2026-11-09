@@ -688,7 +688,7 @@ async function loadFile(source, format, options, onPreview) {
 }
 
 module.exports = {
-  snapExcelDate,
+  snapExcelDate, hyparquet, asyncBufferFor, byteChunks, genericName,
   loadFile, loadCsv, loadParquet, loadExcel, sheetTable, isHeaderRow, formatFromPath, parquetType, schemaRows,
   inferJsType, DEFAULTS, PREVIEW_ROWS, STREAM_MIN_BYTES, streamTable, CSV_DELIMITERS, CSV_ENCODINGS, pickEncoding,
 };

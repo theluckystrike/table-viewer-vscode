@@ -3,9 +3,45 @@
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/i/zovo.table-viewer-vscode?label=VS%20Code%20installs" alt="VS Code installs"></a>
 <a href="https://marketplace.visualstudio.com/items?itemName=zovo.table-viewer-vscode"><img src="https://img.shields.io/visual-studio-marketplace/v/zovo.table-viewer-vscode?label=version" alt="Version"></a>
 
-Free, with no paywall, no ads, no license banner, no evaluation popup and no account. There is nothing to buy. The SQL filter, column stats and export are free too.
+Free, no sign-in, works offline. No paywall, no ads, no license banner, no evaluation popup and no account. There is nothing to buy. SQL queries, the SQL filter, column stats and export are free too.
 
-An XLSX viewer, Excel viewer, CSV viewer and Parquet viewer for VS Code. It shows Excel, CSV and Parquet files as a sortable, filterable table, even at 1,000,000 rows, with no Python and no setup, and it sends nothing over the network.
+An XLSX viewer, Excel viewer, CSV viewer and Parquet viewer for VS Code, with SQL. It shows Excel, CSV and Parquet files as a sortable, filterable table, even at 1,000,000 rows, and since 0.5 it runs SQL on CSV, Excel and Parquet: query a CSV with GROUP BY and JOIN, even a big CSV of several GB that the table can't hold. No Python, no database to install, and nothing goes over the network.
+
+![VS Code with a 250 MB taxi-trip CSV open in the table viewer. The Query panel holds SELECT zone, COUNT(*), ROUND(AVG(fare_usd), 2) and a tipped share, WHERE payment = 'card', GROUP BY zone, ORDER BY trips DESC. The result grid shows 10 zones, Midtown first with 602,515 trips. The banner says 10 rows in 3,118 ms, read 4,283,297 rows](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-query-big-csv.png)
+
+*A real VS Code 1.142 window. The 250 MB CSV (4,283,297 generated taxi trips) is past the table's 1,000,000-row limit, so the table shows the first part and the query reads the whole file as a stream: 3.1 s on an M-series Mac.*
+
+## SQL queries on CSV, Excel and Parquet (new in 0.5)
+
+Click Query in the toolbar, write a SELECT, press Ctrl+Enter (Cmd+Enter on a Mac).
+
+```sql
+SELECT c.country, COUNT(*) AS orders, ROUND(SUM(o.amount), 2) AS revenue
+FROM this o
+JOIN 'customers.parquet' c ON o.customer_id = c.id
+WHERE o.status = 'paid'
+GROUP BY c.country
+ORDER BY revenue DESC
+```
+
+- Real SQL: column lists, expressions and aliases, WHERE, GROUP BY with COUNT, SUM, AVG, MIN, MAX, COUNT(DISTINCT), MEDIAN and GROUP_CONCAT, HAVING, ORDER BY, LIMIT, DISTINCT, CASE, CAST, subqueries in FROM, and about 70 text, number and date functions (LOWER, SUBSTR, REPLACE, ROUND, COALESCE, STRFTIME, DATE_TRUNC, YEAR, DATE_DIFF and more).
+- JOIN: `FROM this` is the open file. Join another sheet of the same workbook by name (`JOIN "Customer List" c ON ...`) or another CSV, TSV, Excel or Parquet file of the workspace by path in single quotes. INNER, LEFT and CROSS joins.
+- Big CSV files: a CSV is read as a stream and a Parquet file one row group at a time, with only the columns the query uses. GROUP BY keeps one row per group, so a large CSV of many GB can be aggregated. Parquet row groups whose min/max statistics rule out the WHERE condition are skipped.
+- Progress in rows per second and a Cancel button. A query that would need too much memory stops with a message that says what to change, instead of freezing VS Code.
+- The result opens in the same grid: sort, filter, stats, copy and Save result as CSV, TSV, JSON, JSON Lines or Parquet. Back to file shows the file again.
+- History per file and Copy query. Only SELECT runs: the viewer never writes to the file you query.
+
+![The light theme. orders.csv is joined with customers.parquet on customer_id, filtered to paid orders and grouped by country. The grid shows 8 countries with orders, revenue and average order, US first with 1,277 orders](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-query-join-light.png)
+
+*A CSV joined with a Parquet file in a real VS Code window, light theme. The same query gives the same numbers as Python's csv module with pyarrow.*
+
+## Why this one
+
+These are problems people reported with other CSV and Excel tools in VS Code, and what this extension does about them. Each point was measured in a real VS Code window.
+
+- Queries on big files. A text-based CSV tool works on the file as a text document, and VS Code does not give extensions text documents over 50 MB. Users report that the query window does not open for a 60 MB CSV ([issue 118](https://github.com/mechatroner/vscode_rainbow_csv/issues/118), [issue 153](https://github.com/mechatroner/vscode_rainbow_csv/issues/153)). This extension reads the file from disk in a background thread: a GROUP BY over a 250 MB CSV with 4.3 million rows took 3.1 s, and the extension host stayed under 600 MB.
+- License banners and evaluation popups. Reviews of a popular Excel and CSV viewer from 2024 to 2026 complain about a license banner, an evaluation popup and features that need payment ([reviews](https://marketplace.visualstudio.com/items?itemName=GrapeCity.gc-excelviewer&ssr=false#review-details)). Here there is no banner, no popup, no trial and no account, and SQL is free.
+- Slow previews of large tables, no row count. The same reviews say large tables take long to preview and the number of rows and columns is hard to see. Here the first rows show while the rest load, the toolbar shows the row and column count, and a file past the limits opens with a "Query the whole file" link that counts every row.
 
 New in 0.4:
 
@@ -40,7 +76,7 @@ New in 0.3:
 
 - Opens fast. Rows are read in a background thread and only the rows and columns on screen are drawn, so VS Code doesn't freeze, even on a file with 5,000 columns. A big CSV or Excel file shows its first rows while the rest load, and a Parquet file with several row groups shows the first group early.
 - No Python, no kernel, no account. It's plain JavaScript that runs offline and sends nothing anywhere.
-- Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, sort, filter, a SQL filter, column stats, copy as CSV, JSON or Markdown, export, and the full text of any cell with its JSON indented.
+- Answers the usual questions in one place. You get the column types, the row count, the full Parquet schema, sort, filter, a SQL filter, SQL queries with GROUP BY and JOIN, column stats, copy as CSV, JSON or Markdown, export, and the full text of any cell with its JSON indented.
 
 ![A 1,000,000 row Parquet file in VS Code, sorted by fare_usd from high to low and filtered to zones that contain Airport, with 99,481 of 1,000,000 rows matching](https://raw.githubusercontent.com/theluckystrike/table-viewer-vscode/main/images/vscode-parquet.png)
 
@@ -134,11 +170,14 @@ Column types come from the Parquet schema, from Excel cell types, or for CSV fro
 | `tableViewer.autoReload` | true | Reload the table when the file changes on disk. |
 | `tableViewer.excelFormats` | true | Show Excel cells with the workbook's number formats. |
 | `tableViewer.maxCompareRows` | 100,000 | Rows per table (per sheet) in Compare with Git HEAD and Compare with Another Table File. |
+| `tableViewer.queryMemoryMB` | 512 | The most memory one query may keep (groups, the sort buffer, the result and the files read for a JOIN). Rows that are only scanned do not count. A bigger query stops with a message. |
 | `tableViewer.askForRating` | true | Ask for a Marketplace rating after 3 files opened without an error on 2 different days. "Later" asks one more time after 7 days, "No thanks" never again. It never asks after an error. Turn it off with `false`. |
 
 On our test machine (Apple Silicon, Node 22), the test suite loads a 1,000,000 row CSV (about 30 MB) in 0.5 s and a 1,000,000 row Parquet file in 0.15 s. It sorts either one by a number column in about 0.2 s and filters in under 0.1 s. Your numbers will differ with the column count and the file.
 
-Table Viewer is read-only. It doesn't edit or save files.
+Table Viewer is read-only. It doesn't edit or save files. Save result and Export write only the new file you pick.
+
+Query limits: one SELECT at a time, no spill to disk (a query past `tableViewer.queryMemoryMB` stops with a message), no RIGHT or FULL JOIN, no WITH and no subqueries inside expressions. In a JOIN every source after the first is read into memory, so put the biggest file first. Other files are read only in a trusted workspace and only from inside the workspace folder.
 
 ## Compared with Data Wrangler
 
@@ -146,7 +185,7 @@ Microsoft Data Wrangler is a full data-cleaning tool. It needs a Python environm
 
 ## Free
 
-Everything above is free, including the SQL filter, column stats and export. There is no paid tier, no trial, no license key to enter and no banner.
+Everything above is free, including SQL queries and JOIN, the SQL filter, column stats and export. There is no paid tier, no trial, no license key to enter and no banner.
 
 ## More screenshots
 

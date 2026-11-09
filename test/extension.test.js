@@ -183,8 +183,9 @@ test('an error is shown again after the tab is hidden and shown', async () => {
   p.setVisible(true);
   const from = p.sent.length;
   p.onMsg({ type: 'ready' });
-  assert.deepStrictEqual(p.sent.slice(from).map(m => m.type), ['init', 'error']);
-  assert.match(p.sent[from + 1].message, /Unsupported/);
+  // 0.5: the query history for the file follows init.
+  assert.deepStrictEqual(p.sent.slice(from).map(m => m.type), ['init', 'queryHistory', 'error']);
+  assert.match(p.sent[from + 2].message, /Unsupported/);
 });
 
 // RK1: auto-reload. The per-file watcher fires, the worker reads the file again, sort and filters stay.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 (2026-11-09)
+
+- New Query panel: click Query in the toolbar and run a SQL SELECT on the open file. It supports column lists, expressions and aliases, WHERE, GROUP BY with COUNT, SUM, AVG, MIN, MAX, COUNT(DISTINCT), MEDIAN and GROUP_CONCAT, HAVING, ORDER BY, LIMIT and OFFSET, DISTINCT, CASE, CAST and about 70 text, number and date functions (STRFTIME, DATE_TRUNC, YEAR, DATE_DIFF and more). The query box starts with an example made from your columns.
+- JOIN: other sheets of the same workbook (`FROM this o JOIN "Customer List" c ON ...`) and other CSV, TSV, Excel and Parquet files of the workspace by path (`JOIN 'data/customers.parquet' c ON ...`). INNER, LEFT and CROSS joins and subqueries in FROM. Other files are read only in a trusted workspace and only from inside the workspace folder.
+- Big files: a CSV is read as a stream and a Parquet file one row group at a time with only the columns the query uses. Row groups whose min/max statistics rule out the WHERE condition are skipped. GROUP BY keeps only one row per group, so files far larger than the table can show can be aggregated. Files past the viewer limits open with their first rows, and a "Query the whole file" link counts and queries all rows.
+- Progress shows rows per second and percent of the file, and Cancel stops a query at once. A query that would need more memory than `tableViewer.queryMemoryMB` (512 MB) stops with a message that says what to change.
+- The result opens in the same grid: sort, filter, search, stats, copy (CSV, JSON, Markdown) and Save result (CSV, TSV, JSON, JSON Lines and the new Parquet) work on it. "Back to file" shows the file again. `FROM result` queries the result that is shown.
+- Query history per file (kept in this workspace only) and Copy query.
+- Only SELECT runs. Statements that would change data are refused with a message, and the viewer never writes to the file you query.
+- Everything is free, including all of the above. Nothing that was free before has changed. The extension still makes no network calls.
+
 ## 0.4.2 (2026-11-09)
 
 - The Marketplace name is now "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer (XLS, CSV Preview)" (was "XLSX Viewer & CSV Preview for Excel, XLS & Parquet"). It brings back the exact words Excel Viewer, CSV Viewer and Parquet Viewer, and keeps XLS and CSV Preview. The extension ID, settings and commands stay the same.

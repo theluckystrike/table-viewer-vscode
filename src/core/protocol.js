@@ -14,7 +14,8 @@
 const MAX_PAGE = 2000;
 const MAX_FILTER_LEN = 500;
 const COPY_FORMATS = new Set(['csv', 'tsv', 'json', 'md']);
-const EXPORT_FORMATS = new Set(['csv', 'tsv', 'json', 'jsonl']);
+const EXPORT_FORMATS = new Set(['csv', 'tsv', 'json', 'jsonl', 'parquet']);
+const MAX_SQL_LEN = 20000;
 const MAX_QUERY_LEN = 2000;
 // 'auto' detects the delimiter. The others match readers.CSV_DELIMITERS.
 const CSV_DELIMITER_CHOICES = new Set(['auto', ',', '\t', ';', '|', ':']);
@@ -38,7 +39,11 @@ function validateWebviewMessage(msg) {
     case 'stats':
     case 'reload':
     case 'compare':
+    case 'queryCancel':
+    case 'queryBack':
       return { type: msg.type };
+    case 'query':
+      return typeof msg.sql === 'string' && msg.sql.trim() ? { type: 'query', sql: msg.sql.slice(0, MAX_SQL_LEN) } : null;
     case 'formats':
       return typeof msg.on === 'boolean' ? { type: 'formats', on: msg.on } : null;
     case 'formulas':
@@ -131,6 +136,10 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   let formatted = true; // Excel number formats shown (tableViewer.excelFormats, toolbar switch)
   let showFormulas = false; // Excel: formula text instead of results (toolbar switch "Formulas")
   let pendingReload = null; // a reload asked for while a load was running
+  // Query panel: while a result is shown, `table`/`info` hold the result and `saved` holds the file.
+  let saved = null;
+  let running = null; // {id, ctx} of the query that is running
+  let queryId = 0;
   const proOnly = what => post({ type: 'error', message: `${what} is a Table Viewer Pro feature.`, code: 'PRO', transient: true });
 
   const sendMeta = (extra = {}) => {
@@ -154,7 +163,17 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     return f;
   }
 
+  /** Show the file again (after a query result). */
+  function restoreFile() {
+    if (!saved) return false;
+    table = saved.table;
+    info = saved.info;
+    saved = null;
+    return true;
+  }
+
   async function open(msg) {
+    restoreFile();
     lastOpen = msg;
     loading = true;
     started = now();
@@ -200,6 +219,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   async function reload(msg) {
     if (!lastOpen) return undefined;
     if (loading) { pendingReload = msg; return undefined; }
+    restoreFile();
     const prev = table ? {
       names: table.columns.map(c => c.name),
       sort: table.sort,
@@ -261,6 +281,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   /** Show another sheet of the workbook. The streaming reader loads it from the file (async). */
   async function switchSheet(name) {
     if (!loadSheet || loading) return undefined;
+    restoreFile();
     const fn = loadSheet;
     loading = true;
     let res;
@@ -368,6 +389,14 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
         version++;
         return post({ type: 'view', version, viewCount: table.viewCount, sort: table.sort, ms: 0, formatted, showFormulas });
       }
+      case 'query':
+        return runQuery(msg);
+      case 'queryCancel':
+        if (running) running.ctx.cancelled = true;
+        return undefined;
+      case 'queryBack':
+        if (restoreFile()) { version++; sendMeta({ loadMs: loadMs || 0 }); }
+        return undefined;
       case 'resync':
         sendMeta(loading || loadMs === null ? { resync: true } : { resync: true, loadMs });
         if (lastError) post(lastError);
@@ -375,6 +404,75 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
       default:
         return post({ type: 'error', message: `Unknown message ${msg.type}`, transient: true });
     }
+  }
+
+  /**
+   * Run one SELECT from the Query panel. msg: {sql, files, allowStream, allowFiles, memCapMB, maxResultRows, fileName}.
+   * Progress goes out as queryProgress; the end as queryDone, and on success the result replaces the grid
+   * (sort, filter, copy, stats and export then work on it). queryBack shows the file again.
+   */
+  async function runQuery(msg) {
+    if (running) return post({ type: 'queryDone', ok: false, error: 'A query is already running. Cancel it first.' });
+    if (!lastOpen || loading || !(saved ? saved.table : table)) return post({ type: 'queryDone', ok: false, error: 'Still loading. Queries start when all rows are in.' });
+    const sqlMod = require('./sql/exec');
+    const { createResolver, resultTable } = require('./sql/index');
+    const id = ++queryId;
+    const t0 = now();
+    const notes = [];
+    const ctx = sqlMod.createContext({
+      now,
+      onProgress: p => post({ type: 'queryProgress', id, rows: p.rows, bytes: p.bytes, totalBytes: p.totalBytes, ms: p.ms }),
+    });
+    running = { id, ctx };
+    post({ type: 'queryProgress', id, rows: 0, bytes: 0, totalBytes: 0, ms: 0 });
+    const file = {
+      table: saved ? saved.table : table,
+      info: saved ? saved.info : info,
+      source: lastOpen.source,
+      format: lastOpen.format,
+      options: lastOpen.options,
+      loadSheet,
+      fileName: msg.fileName || lastOpen.source.path || lastOpen.source.name || '',
+    };
+    const resolve = createResolver({
+      file,
+      result: saved ? table : null,
+      files: msg.files || {},
+      allowStream: msg.allowStream !== false,
+      allowFiles: msg.allowFiles !== false,
+      note: n => { if (!notes.includes(n)) notes.push(n); },
+      loaders: msg.loaders,
+    });
+    let res;
+    try {
+      res = await sqlMod.runSql(msg.sql, {
+        resolve,
+        memCapMB: msg.memCapMB || sqlMod.DEFAULTS.memCapMB,
+        maxResultRows: msg.maxResultRows || sqlMod.DEFAULTS.maxResultRows,
+      }, ctx);
+    } catch (e) {
+      running = null;
+      const cancelled = !!(e && e.cancelled);
+      return post({
+        type: 'queryDone', id, ok: false, cancelled, rows: ctx.rows, ms: now() - t0,
+        error: cancelled ? `Cancelled after ${ctx.rows.toLocaleString('en-US')} rows.` : (e && e.code === 'SQL' ? e.message : `The query failed: ${e && e.message ? e.message : e}`),
+      });
+    }
+    running = null;
+    for (const n of ctx.notes) if (!notes.includes(n)) notes.push(n);
+    const result = resultTable(res);
+    if (!saved) saved = { table, info };
+    table = result;
+    table.formatted = false;
+    const ms = now() - t0;
+    info = {
+      format: 'query', totalRows: result.rowCount, truncated: !!res.truncated,
+      truncatedReason: res.truncated ? `The result is cut at ${result.rowCount.toLocaleString('en-US')} rows (limit tableViewer.maxRows). Add LIMIT, WHERE or GROUP BY, or save the result.` : '',
+      query: { sql: msg.sql, ms, scanned: ctx.rows, bytes: ctx.bytes, notes, file: saved.info && saved.info.format },
+    };
+    version++;
+    sendMeta({ loadMs: ms });
+    return post({ type: 'queryDone', id, ok: true, rows: result.rowCount, columns: result.columns.length, scanned: ctx.rows, ms, truncated: !!res.truncated, notes });
   }
 
   /** Export the whole view. msg: {format, path?}. With a path and writeFile, streams to the file; else returns the text. */
@@ -385,6 +483,15 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     if (!EXPORT_FORMATS.has(msg.format)) return reply({ ok: false, error: 'Unknown export format.' });
     const t0 = now();
     const rows = table.viewCount;
+    if (msg.format === 'parquet') {
+      if (!msg.path) return reply({ ok: false, error: 'Parquet files can be saved only to a folder on this computer.' });
+      try {
+        const bytes = await require('./parquetout').writeParquet(msg.path, table);
+        return reply({ ok: true, rows, bytes, ms: now() - t0 });
+      } catch (e) {
+        return reply({ ok: false, error: e && e.message ? e.message : String(e) });
+      }
+    }
     try {
       if (msg.path && writeFile) {
         const bytes = await writeFile(msg.path, table.exportChunks(msg.format));
@@ -398,7 +505,7 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     }
   }
 
-  return { handle, fail, get table() { return table; }, get version() { return version; }, get pro() { return pro; } };
+  return { handle, fail, get table() { return table; }, get version() { return version; }, get pro() { return pro; }, get showingResult() { return !!saved; } };
 }
 
 module.exports = { validateWebviewMessage, createSession, columnsMeta, MAX_PAGE, EXPORT_FORMATS, CSV_DELIMITER_CHOICES };

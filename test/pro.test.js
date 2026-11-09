@@ -8,10 +8,31 @@ const lic = { valid: true, license: { plan: 'lifetime', expires: null, email: 'a
 const settings = { maxRows: 1000000, maxFileSizeMB: 512, maxExcelSizeMB: 50, maxCopyRows: 100000 };
 
 test('entitlement: Pro switched off means no Pro, even with a valid key', () => {
-  assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: false }, lic), { enabled: false, licensed: false, plan: null, expires: null, email: null });
-  assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: true }, null), { enabled: true, licensed: false, plan: null, expires: null, email: null });
+  assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: false }, lic), { enabled: false, licensed: false, via: null, plan: null, expires: null, email: null });
+  assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: true }, null), { enabled: true, licensed: false, via: null, plan: null, expires: null, email: null });
   assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: true }, { valid: false, reason: 'expired' }).licensed, false);
-  assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: true }, lic), { enabled: true, licensed: true, plan: 'lifetime', expires: null, email: 'a@b.c' });
+  assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: true }, lic), { enabled: true, licensed: true, via: 'key', plan: 'lifetime', expires: null, email: 'a@b.c' });
+  // 0.5: a GitHub Sponsors unlock (Zovo Pro) counts only when the Pro switch is on.
+  assert.strictEqual(P.entitlement({ PRO_ENABLED: false }, null, true).licensed, false);
+  assert.deepStrictEqual(P.entitlement({ PRO_ENABLED: true }, null, true), { enabled: true, licensed: true, via: 'github-sponsors', plan: 'zovo-pro', expires: null, email: null });
+});
+
+test('canUse: with the Pro switch off every feature is free; on, Pro features need a license', () => {
+  const off = P.entitlement({ PRO_ENABLED: false }, null);
+  const free = P.entitlement({ PRO_ENABLED: true }, null);
+  const pro = P.entitlement({ PRO_ENABLED: true }, lic);
+  const spon = P.entitlement({ PRO_ENABLED: true }, null, true);
+  for (const f of P.FREE_FEATURES) for (const e of [off, free, pro, spon, null]) assert.strictEqual(P.canUse(f, e), true, f);
+  for (const { id } of P.PRO_FEATURES) {
+    assert.strictEqual(P.canUse(id, off), true, id);
+    assert.strictEqual(P.canUse(id, null), true, id);
+    assert.strictEqual(P.canUse(id, free), false, id);
+    assert.strictEqual(P.canUse(id, pro), true, id);
+    assert.strictEqual(P.canUse(id, spon), true, id);
+  }
+  assert.strictEqual(P.canUse('no-such-feature', pro), false);
+  // Single-file SELECT, GROUP BY, sheet joins and history stay free for good.
+  for (const f of ['sql-query', 'query-history', 'join-sheets']) assert.ok(P.FREE_FEATURES.includes(f), f);
 });
 
 test('isEnabled: free features always run, Pro features only with a license', () => {
@@ -26,7 +47,8 @@ test('isEnabled: free features always run, Pro features only with a license', ()
   }
   assert.strictEqual(P.isEnabled('no-such-feature', pro), false);
   // 0.4: the SQL filter, export and column stats moved to the free list (no paywall).
-  assert.deepStrictEqual(P.PRO_FEATURES.map(f => f.id), ['large-files']);
+  // 0.5: two paid candidates for the Query panel (switched off at ship: config.PRO_ENABLED false).
+  assert.deepStrictEqual(P.PRO_FEATURES.map(f => f.id), ['large-files', 'query-join-files', 'save-parquet']);
   for (const f of ['sql-filter', 'export', 'column-stats', 'copy-md', 'formulas']) assert.ok(P.FREE_FEATURES.includes(f), f);
 });
 

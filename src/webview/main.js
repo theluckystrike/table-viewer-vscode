@@ -37,6 +37,9 @@ const S = {
   pro: { enabled: false },
   statsOpen: false,
   queryOpen: false,
+  sqlOpen: false, // Query panel (full SELECT)
+  sqlRunning: false,
+  sqlHistory: [],
   cellOpen: false, // cell panel with the full value of the focused cell
   cellReq: 0,
   cellData: null,
@@ -92,8 +95,10 @@ btnFormats.hidden = true;
 // Pro controls. All hidden unless the host says Pro is switched on (config.PRO_ENABLED).
 const proBadge = el('button', 'pro-badge', 'Pro');
 proBadge.hidden = true;
-const btnQuery = el('button', 'btn', 'SQL');
+const btnQuery = el('button', 'btn', 'SQL filter');
 btnQuery.title = 'Filter rows with a SQL WHERE condition, for example: price > 20 AND city LIKE \'Lon%\'';
+const btnSql = el('button', 'btn', 'Query');
+btnSql.title = 'Run a SQL SELECT over the whole file: GROUP BY, COUNT, SUM, AVG, JOIN with other sheets or files, ORDER BY, LIMIT. Free, runs on this computer.';
 const btnStats = el('button', 'btn', 'Stats');
 btnStats.title = 'Count, nulls, distinct, min, max, mean and top values for each column of the rows in view';
 const btnExport = el('button', 'btn', 'Export');
@@ -119,7 +124,7 @@ encSel.setAttribute('aria-label', 'Encoding');
 encSel.title = 'How the bytes of the file are read as text. Auto reads the byte order mark, then tries UTF-8, Japanese, Chinese, Korean, Cyrillic and Western code pages.';
 encLabel.append(encSel);
 csvBox.append(delimLabel, encLabel, headerLabel);
-toolbar.append(title, fmtBadge, stats, spacer, csvBox, sheetSel, btnFormats, btnFormulas, search, btnQuery, btnSchema, btnStats, btnFreeze, btnCsv, btnJson, btnMd, btnExport, btnCompare, btnReload, proBadge);
+toolbar.append(title, fmtBadge, stats, spacer, csvBox, sheetSel, btnFormats, btnFormulas, search, btnSql, btnQuery, btnSchema, btnStats, btnFreeze, btnCsv, btnJson, btnMd, btnExport, btnCompare, btnReload, proBadge);
 
 const queryBar = el('div', 'querybar');
 queryBar.hidden = true;
@@ -132,6 +137,33 @@ const queryRun = el('button', 'btn', 'Apply');
 const queryClear = el('button', 'btn', 'Clear');
 const queryErr = el('span', 'qerr');
 queryBar.append(queryLabel, queryInput, queryRun, queryClear, queryErr);
+// Query panel: one SELECT over the open file. The result replaces the grid until "Back to file".
+const sqlPanel = el('div', 'sqlpanel');
+sqlPanel.hidden = true;
+const sqlInput = el('textarea', 'sqlinput');
+sqlInput.rows = 4;
+sqlInput.spellcheck = false;
+sqlInput.setAttribute('aria-label', 'SQL query');
+sqlInput.placeholder = "SELECT city, COUNT(*) AS n, AVG(fare) FROM this WHERE fare > 0 GROUP BY city ORDER BY n DESC LIMIT 100\n-- JOIN: FROM this t JOIN 'customers.csv' c ON t.customer_id = c.id   ·   other sheets: FROM \"Sheet 2\"";
+const sqlBar = el('div', 'sqlbar');
+const sqlRun = el('button', 'btn on', 'Run');
+sqlRun.title = 'Run the query (Ctrl+Enter or Cmd+Enter)';
+const sqlCancel = el('button', 'btn', 'Cancel');
+sqlCancel.hidden = true;
+const sqlHist = el('select', 'sheet');
+sqlHist.setAttribute('aria-label', 'Query history');
+sqlHist.title = 'Queries you ran on this file (kept in this workspace only)';
+const sqlCopy = el('button', 'btn', 'Copy query');
+const sqlSave = el('button', 'btn', 'Save result');
+sqlSave.title = 'Save the result as CSV, TSV, JSON, JSON Lines or Parquet';
+sqlSave.hidden = true;
+const sqlBack = el('button', 'btn', 'Back to file');
+sqlBack.hidden = true;
+const sqlStatus = el('span', 'sqlstatus');
+const sqlErr = el('div', 'qerr sqlerr');
+sqlErr.hidden = true;
+sqlBar.append(sqlRun, sqlCancel, sqlHist, sqlCopy, sqlSave, sqlBack, sqlStatus);
+sqlPanel.append(sqlInput, sqlBar, sqlErr);
 const statsPanel = el('div', 'statspanel');
 statsPanel.hidden = true;
 
@@ -180,7 +212,7 @@ status.append(statusLeft, statusMid, statusRight);
 // The host renders the Sponsor / More free viewers line only when tableViewer.showSupportLinks is on.
 const supportLine = document.getElementById('zovo-support');
 if (supportLine) status.append(supportLine);
-app.append(toolbar, queryBar, banner, schemaPanel, statsPanel, grid, cellPanel, status);
+app.append(toolbar, sqlPanel, queryBar, banner, schemaPanel, statsPanel, grid, cellPanel, status);
 
 // ---------- header ----------
 function totalWidth() { return GUTTER_W + S.widths.reduce((a, b) => a + b, 0); }
@@ -672,6 +704,70 @@ function applyQuery() {
 queryRun.addEventListener('click', applyQuery);
 queryInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyQuery(); } });
 queryClear.addEventListener('click', () => { queryInput.value = ''; applyQuery(); });
+
+// ---------- Query panel ----------
+function sqlName(n) { return /^[A-Za-z_][A-Za-z0-9_]*$/.test(n) ? n : '"' + String(n).replace(/"/g, '""') + '"'; }
+function exampleSql() {
+  const cols = (S.info && S.info.query && S.saved) ? S.saved : S.columns;
+  const str = cols.find(c => c.type === 'string');
+  const n = cols.find(c => NUMERIC.has(c.type));
+  if (str && n) return `SELECT ${sqlName(str.name)}, COUNT(*) AS n, ROUND(AVG(${sqlName(n.name)}), 2) AS avg_${String(n.name).replace(/\W+/g, '_').toLowerCase()}\nFROM this\nGROUP BY ${sqlName(str.name)}\nORDER BY n DESC\nLIMIT 100`;
+  if (str) return `SELECT ${sqlName(str.name)}, COUNT(*) AS n\nFROM this\nGROUP BY ${sqlName(str.name)}\nORDER BY n DESC\nLIMIT 100`;
+  return 'SELECT *\nFROM this\nLIMIT 100';
+}
+function openSql(text, run) {
+  S.sqlOpen = true;
+  if (text !== undefined) sqlInput.value = text;
+  else if (!sqlInput.value.trim()) sqlInput.value = exampleSql();
+  renderSql();
+  layout();
+  sqlInput.focus();
+  if (run) runSql();
+}
+function renderSql() {
+  sqlPanel.hidden = !S.sqlOpen;
+  btnSql.classList.toggle('on', S.sqlOpen || !!(S.info && S.info.query));
+  sqlRun.disabled = S.sqlRunning;
+  sqlCancel.hidden = !S.sqlRunning;
+  const result = !!(S.info && S.info.query);
+  sqlSave.hidden = !result;
+  sqlBack.hidden = !result;
+  sqlHist.textContent = '';
+  const head = el('option', null, S.sqlHistory.length ? `History (${S.sqlHistory.length})` : 'History');
+  head.value = '';
+  sqlHist.append(head);
+  S.sqlHistory.forEach((q, i) => { const o = el('option', null, q.replace(/\s+/g, ' ').slice(0, 90)); o.value = String(i); o.title = q; sqlHist.append(o); });
+  sqlHist.disabled = !S.sqlHistory.length;
+}
+function runSql() {
+  const q = sqlInput.value.trim();
+  if (!q) return;
+  if (S.loading && !(S.info && S.info.query)) { sqlStatus.textContent = 'Still loading. Queries start when all rows are in.'; return; }
+  S.sqlRunning = true;
+  sqlErr.hidden = true;
+  sqlErr.textContent = '';
+  sqlStatus.textContent = 'Starting…';
+  renderSql();
+  vscode.postMessage({ type: 'query', sql: q });
+}
+btnSql.addEventListener('click', () => { if (S.sqlOpen) { S.sqlOpen = false; renderSql(); layout(); } else openSql(); });
+sqlRun.addEventListener('click', runSql);
+sqlCancel.addEventListener('click', () => { sqlStatus.textContent = 'Cancelling…'; vscode.postMessage({ type: 'queryCancel' }); });
+sqlBack.addEventListener('click', () => vscode.postMessage({ type: 'queryBack' }));
+sqlSave.addEventListener('click', () => vscode.postMessage({ type: 'export' }));
+sqlCopy.addEventListener('click', () => { if (sqlInput.value.trim()) vscode.postMessage({ type: 'copyText', text: sqlInput.value }); });
+sqlHist.addEventListener('change', () => {
+  const i = Number(sqlHist.value);
+  if (sqlHist.value !== '' && S.sqlHistory[i]) sqlInput.value = S.sqlHistory[i];
+  sqlHist.value = '';
+  sqlInput.focus();
+});
+sqlInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runSql(); }
+});
+function rowsText(n) { return `${fmtN(n)} row${Number(n) === 1 ? '' : 's'}`; }
+function rate(rows, ms) { return ms > 0 ? Math.round(rows / (ms / 1000)) : 0; }
 btnStats.addEventListener('click', () => {
   S.statsOpen = !S.statsOpen;
   renderPro();
@@ -819,6 +915,24 @@ function updateStatus() {
 
 function showBanner() {
   const parts = [];
+  const qr = S.info && S.info.query;
+  if (qr && !S.error) {
+    banner.textContent = '';
+    banner.hidden = false;
+    banner.classList.remove('error');
+    banner.classList.add('result');
+    const scanned = qr.scanned ? ` · read ${rowsText(qr.scanned)}` : '';
+    banner.append(el('span', null, `Query result: ${rowsText(S.totalRows)} in ${fmtN(qr.ms)} ms${scanned}.` + (S.info.truncated ? ' ' + S.info.truncatedReason : '') + (qr.notes && qr.notes.length ? ' ' + qr.notes.join(' ') : '')));
+    const save = el('button', 'link', 'Save result');
+    save.addEventListener('click', () => vscode.postMessage({ type: 'export' }));
+    const back = el('button', 'link', 'Back to file');
+    back.addEventListener('click', () => vscode.postMessage({ type: 'queryBack' }));
+    const edit = el('button', 'link', 'Edit query');
+    edit.addEventListener('click', () => openSql(qr.sql));
+    banner.append(save, edit, back);
+    return;
+  }
+  banner.classList.remove('result');
   if (S.error) parts.push(S.error);
   else if (S.info.truncated && S.info.truncatedReason) {
     parts.push(S.info.truncatedReason);
@@ -836,6 +950,12 @@ function showBanner() {
   banner.hidden = false;
   banner.classList.toggle('error', !!S.error);
   banner.append(el('span', null, parts.join(' ')));
+  if (!S.error && S.info.truncated && S.format !== 'query') {
+    const whole = el('button', 'link', 'Query the whole file');
+    whole.title = 'Count the rows of the whole file, or run any SELECT over all of it (the table shows only the first part)';
+    whole.addEventListener('click', () => openSql('SELECT COUNT(*) AS rows\nFROM this', true));
+    banner.append(whole);
+  }
   const link = el('button', 'link', 'Settings');
   link.addEventListener('click', () => vscode.postMessage({ type: 'openSettings' }));
   banner.append(link);
@@ -892,6 +1012,7 @@ window.addEventListener('message', ev => {
       buildHeader();
       if (msg.firstRowsMs !== undefined) S.timing = `First rows in ${fmtN(msg.firstRowsMs)} ms`;
       if (msg.loadMs !== undefined && !msg.loading) S.timing = `Loaded in ${fmtN(msg.loadMs)} ms`;
+      if (msg.info && msg.info.query && msg.loadMs !== undefined) S.timing = `Query ran in ${fmtN(msg.loadMs)} ms`;
       const sheets = S.info.sheets || [];
       sheetSel.hidden = sheets.length < 2;
       if (sheets.length >= 2) {
@@ -905,6 +1026,9 @@ window.addEventListener('message', ev => {
         const what = msg.reloaded.manual ? 'Reloaded' : 'Reloaded: the file changed on disk';
         flash(b === a ? `${what} (${fmtN(a)} rows)` : `${what} (${fmtN(b)} → ${fmtN(a)} rows)`);
       }
+      if (!(S.info && S.info.query)) S.saved = S.columns;
+      fmtBadge.textContent = S.info && S.info.query ? 'QUERY RESULT' : String(S.format || '').toUpperCase();
+      renderSql();
       renderFormats();
       renderFormulas();
       showBanner();
@@ -990,7 +1114,34 @@ window.addEventListener('message', ev => {
       renderCell();
       break;
     case 'copiedText':
-      flash(`Copied the value (${fmtN(msg.chars)} characters)`);
+      flash(`Copied ${fmtN(msg.chars)} characters`);
+      break;
+    case 'queryHistory':
+      S.sqlHistory = Array.isArray(msg.items) ? msg.items.filter(x => typeof x === 'string') : [];
+      renderSql();
+      break;
+    case 'openQuery':
+      openSql();
+      break;
+    case 'queryProgress': {
+      S.sqlRunning = true;
+      const pct = msg.totalBytes > 0 ? ` · ${Math.min(100, Math.floor((100 * msg.bytes) / msg.totalBytes))}%` : '';
+      sqlStatus.textContent = msg.rows ? `Reading… ${fmtN(msg.rows)} rows · ${fmtN(rate(msg.rows, msg.ms))} rows/s${pct}` : 'Reading…';
+      renderSql();
+      break;
+    }
+    case 'queryDone':
+      S.sqlRunning = false;
+      if (msg.ok) {
+        // The banner under the panel says how many rows came back; here: how fast the file was read.
+        sqlStatus.textContent = `Done in ${fmtN(msg.ms)} ms` + (msg.scanned ? ` · read ${rowsText(msg.scanned)} at ${fmtN(rate(msg.scanned, msg.ms))} rows/s` : '');
+        sqlErr.hidden = true;
+      } else {
+        sqlStatus.textContent = msg.cancelled ? msg.error : '';
+        if (!msg.cancelled) { sqlErr.textContent = msg.error || 'The query failed.'; sqlErr.hidden = false; S.sqlOpen = true; }
+      }
+      renderSql();
+      layout();
       break;
     case 'requestCopy':
       copy(msg.format === 'json' || msg.format === 'md' ? msg.format : 'csv');

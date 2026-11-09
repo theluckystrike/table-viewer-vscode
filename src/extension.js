@@ -419,7 +419,7 @@ async function unlockWithSponsors() {
   const r = await sponsors.unlock();
   if (r.reason === 'cancelled') return;
   if (r.pro) { setLicense(licenseCheck); vscode.window.showInformationMessage('Zovo Pro is on. Thank you.'); return; }
-  if (r.reason === 'not-sponsor' || r.reason === 'below-minimum') {
+  if (r.reason === 'not-sponsor' || r.reason === 'other-tier' || r.reason === 'below-minimum') {
     const pick = await vscode.window.showInformationMessage(r.message, 'Open GitHub Sponsors');
     if (pick) sponsors.openSponsorsPage();
     return;

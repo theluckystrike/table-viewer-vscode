@@ -82,7 +82,7 @@ test('shipped config: the Zovo live public key, the same one zovo-license.js emb
 
 test('the Sponsors rail is the shared Zovo one: same cache key and sponsor login as every Zovo viewer', () => {
   const s = fs.readFileSync(path.join(__dirname, '..', 'src', 'sponsors.js'), 'utf8');
-  assert.match(s, /zovo\.pro\.sponsors\.v1/);
+  assert.match(s, /zovo\.pro\.sponsors\.v2/);
   assert.match(s, /theluckystrike/);
   const shared = path.join(require('os').homedir(), 'plugin-market-intel-work', 'factory', 'sprint', 'license', 'sponsors.js');
   if (fs.existsSync(shared)) assert.strictEqual(s, fs.readFileSync(shared, 'utf8'));

@@ -5,6 +5,9 @@
 //   payload   = base64url(JSON {v, product, id, email, plan, issued, expires})
 //   signature = base64url(Ed25519 signature over the ASCII text "TVPRO1.<payload>")
 // The private key never ships. The extension holds only the public key (src/config.js).
+//
+// Zovo Pro keys (ZOVO1.<payload>.<sig>, sku zovo-pro, the shared key for every Zovo viewer) are accepted too. They are
+// checked by src/zovo-license.js (a copy of factory/sprint/license/license.js) against the Zovo public key.
 
 const crypto = require('crypto');
 
@@ -13,6 +16,8 @@ const PRODUCT = 'table-viewer-pro';
 const MAX_KEY_LEN = 4096;
 const PLANS = new Set(['lifetime', 'yearly']);
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ZOVO_PREFIX = 'ZOVO1.';
+const ZOVO_SKU = 'xlsx-pro'; // a zovo-pro (or zovo-pro-team) bundle key grants it, as does a key made for xlsx-pro
 
 function b64url(buf) { return Buffer.from(buf).toString('base64url'); }
 
@@ -57,6 +62,31 @@ function signLicense(payload, privateKey) {
 }
 
 /**
+ * A Zovo Pro key (ZOVO1.), checked offline with src/zovo-license.js. Same result shape as a TVPRO1 key.
+ * opts.zovoPublicKey (base64 SPKI) defaults to the Zovo live key embedded in zovo-license.js; opts.zovoAllowTest
+ * accepts test-mode keys (tests and gate builds only).
+ */
+function verifyZovoKey(key, opts) {
+  const fail = (reason, message, license) => ({ valid: false, reason, message, ...(license ? { license } : {}) });
+  const Z = require('./zovo-license');
+  const r = Z.checkKey(key, ZOVO_SKU, { publicKey: opts.zovoPublicKey || undefined, allowTest: opts.zovoAllowTest, now: opts.now });
+  const l = r.license;
+  const lic = l ? {
+    v: 1, product: 'zovo-pro', sku: l.sku, id: l.sessionId, email: null,
+    plan: l.expires ? 'yearly' : 'lifetime', issued: l.issued, expires: l.expires, seats: l.seats,
+  } : undefined;
+  if (r.ok) return { valid: true, license: lic };
+  switch (r.reason) {
+    case 'signature': return fail('signature', 'This Zovo Pro key is not valid. Copy it again from the email, the whole line.');
+    case 'version': return fail('version', 'This Zovo Pro key is for a newer version of Table Viewer. Update the extension.');
+    case 'test': return fail('test', 'This is a test key. It does not unlock a released build.');
+    case 'expired': return fail('expired', `This yearly license ended on ${l.expires}. Renew it to keep the Pro features.`, lic);
+    case 'sku': return fail('product', 'This Zovo key is for another product. A Zovo Pro key unlocks the table viewer.');
+    default: return fail('format', 'This Zovo Pro key is damaged. Copy it again from the email, the whole line.');
+  }
+}
+
+/**
  * Check a license key offline.
  * @param {string} raw key text as pasted
  * @param {{publicKey: string|crypto.KeyObject, now?: number}} opts
@@ -67,8 +97,9 @@ function verifyLicense(raw, opts) {
   const key = normalizeKey(raw);
   if (!key) return fail('empty', 'Paste a license key.');
   if (key.length > MAX_KEY_LEN) return fail('format', 'This is not a Table Viewer Pro license key.');
+  if (key.startsWith(ZOVO_PREFIX)) return verifyZovoKey(key, opts || {});
   const parts = key.split('.');
-  if (parts.length !== 3 || parts[0] !== PREFIX || !parts[1] || !parts[2]) return fail('format', 'This is not a Table Viewer Pro license key. It starts with TVPRO1.');
+  if (parts.length !== 3 || parts[0] !== PREFIX || !parts[1] || !parts[2]) return fail('format', 'This is not a Table Viewer Pro license key. It starts with ZOVO1 or TVPRO1.');
   if (!/^[A-Za-z0-9_-]+$/.test(parts[1]) || !/^[A-Za-z0-9_-]+$/.test(parts[2])) return fail('format', 'The key has characters that do not belong in it. Copy it again from the email.');
   const sig = Buffer.from(parts[2], 'base64url');
   let ok = false;
@@ -103,4 +134,4 @@ function generateKeyPair() {
   };
 }
 
-module.exports = { PREFIX, PRODUCT, makePayload, signLicense, verifyLicense, normalizeKey, generateKeyPair, today, addDays };
+module.exports = { PREFIX, PRODUCT, ZOVO_PREFIX, ZOVO_SKU, verifyZovoKey, makePayload, signLicense, verifyLicense, normalizeKey, generateKeyPair, today, addDays };

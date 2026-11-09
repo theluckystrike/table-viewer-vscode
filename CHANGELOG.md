@@ -10,6 +10,7 @@
 - Query history per file (kept in this workspace only) and Copy query.
 - Only SELECT runs. Statements that would change data are refused with a message, and the viewer never writes to the file you query.
 - Everything is free, including all of the above. Nothing that was free before has changed. The extension still makes no network calls.
+- The support links now include PayPal.
 
 ## 0.4.2 (2026-11-09)
 

@@ -9,7 +9,7 @@
 // A link shows only when its value is set. Never add a URL here that is not in funding.json.
 const FUNDING = {
   "github_sponsors": "https://github.com/sponsors/theluckystrike",
-  "paypal_me": "",
+  "paypal_me": "https://www.paypal.com/paypalme/najzzz",
   "buy_me_a_coffee": ""
 };
 
@@ -29,22 +29,22 @@ const SELF_ID = "zovo.table-viewer-vscode";
 const LIVE = [
   [
     "zovo.pdf-viewer-dark",
-    "PDF Viewer & PDF Reader",
+    "PDF Viewer & Reader to Read and View PDF in Dark Mode",
     "reads PDFs with a real dark mode, search, an outline and thumbnails."
   ],
   [
     "zovo.table-viewer-vscode",
-    "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer",
+    "XLSX Viewer & CSV Preview for Excel, XLS & Parquet",
     "opens CSV, TSV, Excel and Parquet files as a sortable, filterable table."
   ],
   [
     "zovo.docx-viewer-vscode",
-    "DOCX Viewer, Word Viewer & DOCX Preview (Dark Mode)",
+    "DOCX Viewer & ODT Viewer, Word Document Preview (Dark Mode)",
     "previews Word and ODT files with dark mode, an outline and search."
   ],
   [
     "zovo.pptx-slide-viewer",
-    "PPTX Viewer & PPT Viewer, PowerPoint Viewer & Slideshow",
+    "PPTX Viewer & PowerPoint Preview, PPT Presentation Slideshow",
     "shows PowerPoint slides, thumbnails and speaker notes."
   ],
   [
@@ -59,7 +59,7 @@ const LIVE = [
   ],
   [
     "zovo.sqlite-table-viewer",
-    "SQLite DB Viewer & SQLite Viewer, Database Viewer (Read-Only)",
+    "SQLite Viewer & SQLite3 DB File Browser, Database Explorer",
     "browses SQLite tables read-only and runs SELECT queries."
   ],
   [
@@ -74,7 +74,7 @@ const LIVE = [
   ],
   [
     "zovo.video-preview-with-sound",
-    "MP4, MOV & MKV Viewer, Video Player with Sound",
+    "MP4, MOV, MKV & WebM Viewer, Video Player & Preview with Sound",
     "plays MP4, MOV, MKV and WebM files with their sound."
   ],
   [
@@ -154,8 +154,8 @@ const LIVE = [
   ],
   [
     "zovo.zovo-file-viewers",
-    "File Viewers Pack",
-    "installs the PDF, table, Word, PowerPoint, HDF5 and tensor viewers in one step."
+    "Office Viewer Pack",
+    "adds the other three Office viewers in one install."
   ],
   [
     "zovo.zip-archive-explorer",
@@ -174,44 +174,71 @@ const LIVE = [
   ],
   [
     "zovo.mermaid-viewer",
-    "Mermaid Viewer & Mermaid Preview (MMD Diagram, No Sign-In)",
-    "no sign-in, no AI. Zoom, pan and export SVG or PNG. Free Mermaid diagram viewer and Mermaid preview for .mmd files and mermaid blocks in Markdown, works offline."
-  ],
-  [
-    "zovo.zovo-geo-map-viewer",
-    "GeoJSON Viewer, KML Viewer & GPX Viewer (Map Preview, Shapefile)",
-    "offline map with a feature table and GPX elevation profile. GeoJSON viewer, KML viewer and GPX viewer with a map preview in VS Code. Also opens shapefiles (SHP, zipped), KMZ, TopoJSON, WKT and CSV with lat/lon; reprojection from .prj, PNG export. Free, no sign-in."
-  ],
-  [
-    "zovo.zovo-hex-viewer",
-    "Hex Viewer & Binary Viewer, Hex Editor (Large Files)",
-    "opens files of any size (4 GB and more) in under a second. Hex viewer, binary viewer and hex editor for VS Code: go to offset, find hex or text, copy as C array, Python bytes or base64, a data inspector, and byte editing with undo. Free, no sign-in, works offline."
-  ],
-  [
-    "zovo.zovo-svg-viewer",
-    "SVG Viewer & SVG Preview (Zoom, PNG Export)",
-    "live preview beside the editor, zoom at the cursor, scripts never run. SVG preview and SVG viewer for VS Code: pan, viewBox outline, checkerboard or custom background, sprite sheet grid for <symbol>, .svgz, and PNG export at 1x to 8x. Free, offline."
-  ]
-];
-const QUEUED = [
-  [
-    "zovo.code-screenshot",
-    "Code Screenshot & Code Snapshot (Copy Code as Image, PNG/SVG)",
-    "code screenshot and code snapshot in one key: select code, press Cmd+Alt+C (Shift+Alt+C) and a PNG of it is on your clipboard, in your editor theme, font and colors. Save PNG or SVG, line numbers, highlights, window frame, backgrounds. Free, no sign-in, works offline.",
-    "https://github.com/theluckystrike/code-screenshot-vscode"
-  ],
-  [
-    "zovo.rst-preview",
-    "RST Preview & reStructuredText Preview (RST Viewer, No Python)",
-    "rST preview and reStructuredText preview for VS Code with no Python, no Sphinx and no setup. Live preview with scroll sync, grid and list tables, admonitions, code colors, math, images, includes, outline and HTML export. Free, works offline.",
-    "https://github.com/theluckystrike/rst-preview-vscode"
+    "Mermaid Diagram Viewer & Mermaid Preview (MMD, Offline)",
+    "free Mermaid editor with a live diagram preview: edit .mmd files and mermaid blocks in Markdown side by side, with completion, error lines, templates and PNG, SVG or PDF export. No sign-in, no AI, works offline."
   ],
   [
     "zovo.swagger-openapi-viewer",
     "Swagger Viewer & OpenAPI Viewer (OpenAPI Preview, 3.1, $ref)",
-    "swagger viewer and OpenAPI preview for VS Code. Live Swagger UI or reference layout for OpenAPI 3.1, 3.0 and Swagger 2.0 in YAML or JSON, with external $ref across files, a problem list with line numbers and copyable text. No server, no port, no sign-in, works offline.",
-    "https://github.com/theluckystrike/swagger-openapi-viewer-vscode"
+    "swagger editor and OpenAPI editor for VS Code: lint with readable rules and quick fixes, IntelliSense, $ref go to definition and rename, and a live Swagger UI preview that follows the cursor. OpenAPI 3.1, 3.0 and Swagger 2.0 in YAML or JSON, offline. Convert 2.0 to 3.0 to 3.1, bundle split specs. Also a Swagger viewer and OpenAPI viewer. No sign-in."
   ],
+  [
+    "zovo.xmind-mind-map-viewer",
+    "XMind Viewer & Mind Map Viewer (XMind 8, 2020+)",
+    "xMind viewer and mind map viewer for VS Code. Opens XMind 2020+, XMind Zen and XMind 8 files with every sheet as a tab, relationships, boundaries, summaries, markers, notes, pictures and LaTeX equations. Also opens FreeMind .mm and OPML. Search, collapse, PNG, SVG and Markdown export. Free, works offline."
+  ],
+  [
+    "zovo.zovo-code-screenshot",
+    "Code Screenshot & Code Snapshot (Copy Code as Image, PNG/SVG)",
+    "code screenshot and code snapshot in one key: select code, press Cmd+Alt+C (Shift+Alt+C) and a PNG of it is on your clipboard, in your editor theme, font and colors. Save PNG or SVG, line numbers, highlights, window frame, backgrounds. Free, no sign-in, works offline."
+  ],
+  [
+    "zovo.zovo-geo-map-viewer",
+    "GeoJSON Viewer, KML Viewer & GPX Viewer (Map Preview, Shapefile)",
+    "geoJSON viewer, KML viewer and GPX viewer with a map preview in VS Code. Also opens shapefiles (SHP, zipped), KMZ, TopoJSON, WKT and CSV with lat/lon: feature table, properties, GPX distance and elevation profile, reprojection from .prj, PNG export. Free, no sign-in, works offline."
+  ],
+  [
+    "zovo.zovo-hex-viewer",
+    "Hex Viewer & Binary Viewer, Hex Editor (Large Files)",
+    "hex viewer, binary viewer and hex editor for VS Code that opens files of any size (4 GB and more) in under a second. Insert and delete bytes, compare two files byte by byte, go to offset, find hex or text, a data inspector, copy as C array or base64. Free, works offline."
+  ],
+  [
+    "zovo.zovo-html-preview",
+    "HTML Preview & HTML Viewer (Live, CSS and Images, Offline)",
+    "free HTML preview and HTML viewer beside your editor. Linked CSS, JS and images load, it updates as you type, and nothing is sent anywhere. No sign-in, no server, works offline."
+  ],
+  [
+    "zovo.zovo-pcap-viewer",
+    "PCAP Viewer & PCAPNG Viewer (Packet Capture Analyzer)",
+    "pCAP viewer and PCAPNG viewer for VS Code: a packet capture analyzer with a packet list, protocol tree and linked hex pane, display filters, follow TCP stream, conversations and endpoints. Opens .pcap.gz and 1 GB captures. Pure JS, nothing to install (no Wireshark or sharkd). Free, no sign-in, works offline."
+  ],
+  [
+    "zovo.zovo-regex-preview",
+    "Regex Preview & Regex Tester (Railroad Diagram Visualizer, Groups)",
+    "regex preview and regex tester beside your code: click \"Test regex\" above a regex in JS, TS, Python, Go, Java, C#, PHP, Ruby or Rust. Capture groups, replace preview, railroad diagram visualizer, explain mode, flavor warnings. Free, no sign-in, works offline."
+  ],
+  [
+    "zovo.zovo-rst-preview",
+    "RST Preview & reStructuredText Preview (RST Viewer, No Python)",
+    "rST preview and reStructuredText preview for VS Code with no Python, no Sphinx and no setup. Live preview with scroll sync, grid and list tables, admonitions, code colors, math, images, includes, outline and HTML export. Free, works offline."
+  ],
+  [
+    "zovo.zovo-rtf-viewer",
+    "RTF Viewer & Rich Text Viewer (RTF Preview, Dark Mode)",
+    "free RTF viewer for VS Code. Open .rtf files as a read-only page with tables, pictures, search, outline, zoom and dark mode. No sign-in, works offline, sends nothing anywhere."
+  ],
+  [
+    "zovo.zovo-sarif-viewer",
+    "SARIF Viewer (CodeQL, Semgrep & Static Analysis Results)",
+    "free SARIF viewer for CodeQL, Semgrep, ESLint, Bandit, Trivy and other static analysis results. Filter by level, baseline and suppression, step through code flows, open each result at its line. No sign-in, no network, works offline."
+  ],
+  [
+    "zovo.zovo-svg-viewer",
+    "SVG Preview & SVG Viewer (PNG Export)",
+    "live preview beside the editor, zoom at the cursor, scripts never run. SVG preview and SVG viewer for VS Code: pan, viewBox outline, checkerboard or custom background, sprite sheet grid for <symbol>, .svgz, and PNG export at 1x to 8x. Free, offline."
+  ]
+];
+const QUEUED = [
   [
     "zovo.vcd-waveform-viewer",
     "VCD Viewer & Waveform Viewer (Verilog, No Signal Limit)",
@@ -219,22 +246,82 @@ const QUEUED = [
     "https://github.com/theluckystrike/vcd-viewer-vscode"
   ],
   [
-    "zovo.xmind-mind-map-viewer",
-    "XMind Viewer & Mind Map Viewer (XMind 8, 2020+)",
-    "xMind viewer and mind map viewer for VS Code. Opens XMind 2020+, XMind Zen and XMind 8 files with every sheet as a tab, relationships, boundaries, summaries, markers, notes, pictures and LaTeX equations. Also opens FreeMind .mm and OPML. Search, collapse, PNG, SVG and Markdown export. Free, works offline.",
-    "https://github.com/theluckystrike/xmind-viewer-vscode"
+    "zovo.zovo-auto-rename-tag",
+    "Tag Auto Rename & Close Tag Sync (Matching Tag Highlight, JSX, Vue)",
+    "auto rename tag and auto close tag as you type in HTML, JSX/TSX, Vue, Svelte, PHP, Blade, Twig, XML and Markdown. One undo step for both tags, never pairs <br> or TypeScript generics, highlights the matching tag. Free, no sign-in, works offline.",
+    "https://github.com/theluckystrike/tag-rename-close-sync-vscode"
   ],
   [
-    "zovo.zovo-html-preview",
-    "HTML Preview & HTML Viewer (Live, CSS and Images, Offline)",
-    "free HTML preview and HTML viewer beside your editor. Linked CSS, JS and images load, it updates as you type, and nothing is sent anywhere. No sign-in, no server, works offline.",
-    "https://github.com/theluckystrike/html-preview-vscode"
+    "zovo.zovo-folder-diff",
+    "Folder Compare & Directory Diff - Compare Files, Folders, Word, Excel & Binary",
+    "free and offline. Compare two folders side by side with clear Left and Right panels, then open a diff for any file: text, Word (.docx, .odt, .doc), Excel (.xlsx, .xls, .ods), CSV, Parquet, PDF and binary files. Copy or delete with a preview, export the result, compare a folder with a Git branch or tag.",
+    "https://github.com/theluckystrike/folder-diff-vscode"
   ],
   [
-    "zovo.zovo-pcap-viewer",
-    "PCAP Viewer & PCAPNG Viewer (Packet Capture Analyzer)",
-    "pCAP viewer and PCAPNG viewer for VS Code: a packet capture analyzer with a packet list, protocol tree and linked hex pane, display filters, follow TCP stream, conversations and endpoints. Opens .pcap.gz and 1 GB captures. Pure JS, nothing to install (no Wireshark or sharkd). Free, no sign-in, works offline.",
-    "https://github.com/theluckystrike/pcap-viewer-vscode"
+    "zovo.zovo-html-css-class-intellisense",
+    "Class Names IntelliSense & CSS Support for HTML Templates (ID Completion)",
+    "free and offline. CSS class names and id completion in HTML, React, Vue, Svelte, Angular, PHP and Blade, from every CSS, SCSS and Less file in your project, <style> blocks, linked style sheets and CSS modules. Go to definition and hover. Light on CPU in big monorepos.",
+    "https://github.com/theluckystrike/class-names-intellisense-vscode"
+  ],
+  [
+    "zovo.zovo-linker-map-viewer",
+    "Linker Map Viewer & Map File Analyzer (GNU ld, Memory Usage)",
+    "opens linker map files (.map) from GNU ld, LLVM lld, IAR and Keil as FLASH and RAM usage bars, sortable tables of sections, object files and symbols, a treemap, and a compare of two builds that shows what grew. Reads 200 MB maps in a background thread. Free, no sign-in, works offline.",
+    "https://github.com/theluckystrike/linker-map-viewer-vscode"
+  ],
+  [
+    "zovo.zovo-load-testing",
+    "Load Testing & HTTP Load Tests for APIs (Performance Testing, Reports)",
+    "free load testing for HTTP APIs inside VS Code, with no account, no cloud and nothing to install. Write a small YAML test or import .http, cURL, HAR, OpenAPI or JMeter. Watch requests per second and p50/p95/p99 latency live, set pass/fail thresholds, save HTML reports and compare runs.",
+    "https://github.com/theluckystrike/load-testing-vscode"
+  ],
+  [
+    "zovo.zovo-markdown-export",
+    "Markdown Export to PDF & Word (DOCX, HTML, No Chromium Download)",
+    "export Markdown to PDF, Word (DOCX) and HTML with the Chrome, Edge or Brave you already have. Nothing to download, works offline. Math, Mermaid, code colours, tables, footnotes, headers, page numbers and a table of contents. Built-in PDF engine when no browser is installed.",
+    "https://github.com/theluckystrike/markdown-export-vscode"
+  ],
+  [
+    "zovo.zovo-parquet-viewer",
+    "Parquet Grid Viewer: Large File Explorer, Schema & Nested Data (Zovo)",
+    "free, no Python, no sign-in, works offline. Opens Parquet files as a fast grid: only the footer and the rows on screen are read, so large files open at once. Exact DECIMAL and INT64 values, INT96 timestamps, nested LIST, MAP and STRUCT, every codec (Snappy, Gzip, Zstd, Brotli, LZ4). Filter, sort, search, copy as CSV, JSON or Markdown, export to CSV.",
+    "https://github.com/theluckystrike/parquet-viewer-vscode"
+  ],
+  [
+    "zovo.zovo-shell-formatter",
+    "Bash & Shell Script Formatter: shfmt Built In, Format on Save",
+    "free and offline. Format shell scripts (bash, sh, zsh, bats, mksh) with shfmt compiled to WebAssembly: nothing to download or install. Reads .editorconfig, puts syntax errors in Problems, skips Dockerfiles and .env files, and checks that formatting keeps the same commands.",
+    "https://github.com/theluckystrike/shell-formatter-vscode"
+  ],
+  [
+    "zovo.zovo-spreadsheet-editor",
+    "Spreadsheet Editor for CSV, Excel & XLSX - Edit Large Files, SQL Filter",
+    "edit CSV, TSV and Excel (.xlsx) files as a spreadsheet. Free, no sign-in, works offline. Real undo and save, 1M-row CSV, untouched rows saved byte for byte, custom delimiter and encoding, find and replace with regex, SQL filter.",
+    "https://github.com/theluckystrike/spreadsheet-editor-vscode"
+  ],
+  [
+    "zovo.zovo-sql-client",
+    "Postgres & MySQL Query Client - SQL Database Tool (SQLite, CSV Export)",
+    "free PostgreSQL client and MySQL client for VS Code: unlimited connections, edit rows, streamed CSV export. Run SQL with Ctrl+Enter, browse tables, cancel long queries. Also MariaDB and SQLite. No sign-in, no telemetry, no keep-alive queries.",
+    "https://github.com/theluckystrike/postgres-mysql-client-vscode"
+  ],
+  [
+    "zovo.zovo-sql-formatter",
+    "SQL Safe Formatter & Format on Save: PostgreSQL, MySQL, T-SQL, PL/SQL (Zovo)",
+    "free and offline SQL formatter that never changes your code: $$ bodies, DELIMITER $$, N'...' strings, [names with spaces] and comments stay exactly as written. Format SQL on save or for a selection in 20 dialects, with procedures indented by block and SQL inside strings.",
+    "https://github.com/theluckystrike/sql-formatter-vscode"
+  ],
+  [
+    "zovo.zovo-svn-client",
+    "SVN Client & Subversion Source Control (Commit, Blame, Log, Diff)",
+    "free SVN client for VS Code that uses your own svn command line. Subversion source control with commit, update, diff, log, blame, branch, switch and merge, one svn status at a time, and nested working copies found once. No sign-in, no network of its own.",
+    "https://github.com/theluckystrike/svn-client-vscode"
+  ],
+  [
+    "zovo.zovo-xml-xpath-tools",
+    "Format XML & XPath Tools: XML Formatter, Tree View, Minify (Zovo)",
+    "format XML without touching text, CDATA, comments or xml:space=\"preserve\". Evaluate XPath with namespaces, copy a correct XPath at the cursor, browse a lazy XML tree, minify, check well-formedness. Big files in a worker. Free, offline.",
+    "https://github.com/theluckystrike/xml-xpath-tools-vscode"
   ]
 ];
 
@@ -299,7 +386,7 @@ const PAIRS = [
 
 // Ids of the 3 to 5 extensions most related to this one (shared file types and users), best first.
 // Picked by monetize.py. The More free viewers list shows these first.
-const RELATED = ["zovo.sqlite-table-viewer", "zovo.zovo-jsonl-viewer", "zovo.arrow-avro-viewer", "zovo.zovo-json-tree-viewer", "zovo.docx-viewer-vscode"];
+const RELATED = ["zovo.zovo-file-viewers", "zovo.sqlite-table-viewer", "zovo.zovo-jsonl-viewer", "zovo.arrow-avro-viewer", "zovo.zovo-json-tree-viewer"];
 
 const PUBLISHER_URL = 'https://marketplace.visualstudio.com/publishers/zovo';
 
@@ -324,10 +411,26 @@ function marketplaceUrl(id) {
   return `https://marketplace.visualstudio.com/items?itemName=${encodeURIComponent(id)}`;
 }
 
-/** The review tab of a listing. '' when the id is empty. */
-function reviewUrl(id) {
+// The store this editor installs from (same rule as rate.js storeFor): VS Code uses the Marketplace; Cursor,
+// Windsurf, VSCodium and other VS Code-based editors use Open VSX. registerSupport() sets it from vscode.env.
+let STORE = 'marketplace';
+function storeFor(env) {
+  const scheme = String((env && env.uriScheme) || '').toLowerCase();
+  const app = String((env && env.appName) || '').toLowerCase();
+  if (!scheme && !app) return 'marketplace';
+  if (/^vscode(-insiders|-exploration)?$/.test(scheme) || app.startsWith('visual studio code')) return 'marketplace';
+  return 'openvsx';
+}
+
+/** The review tab of a listing in the store of this editor (or `store`). '' when the id is empty. */
+function reviewUrl(id, store) {
   const x = String(id || '');
-  return x ? `${marketplaceUrl(x)}&ssr=false#review-details` : '';
+  if (!x) return '';
+  if ((store || STORE) === 'openvsx') {
+    const dot = x.indexOf('.');
+    return `https://open-vsx.org/extension/${encodeURIComponent(dot > 0 ? x.slice(0, dot) : x)}/${encodeURIComponent(dot > 0 ? x.slice(dot + 1) : '')}/reviews`;
+  }
+  return `${marketplaceUrl(x)}&ssr=false#review-details`;
 }
 
 /** How closely two products are used together. 0 when they are not a pair. */
@@ -428,7 +531,7 @@ function footerHtml(prefix, show, extraClass) {
   const sep = '<span class="zovo-sep" aria-hidden="true">·</span>';
   // Order: Rate · More free viewers · Sponsor · PayPal (only when set) · Hide. Rate comes first: ratings help people find the extension.
   return `<div class="${cls}" id="zovo-support">`
-    + (reviewUrl(SELF_ID) ? `<a href="${reviewUrl(SELF_ID)}" title="Rate or review this extension on the Marketplace">Rate</a>` + sep : '')
+    + (reviewUrl(SELF_ID) ? `<a href="${reviewUrl(SELF_ID)}" title="Rate or review this extension on ${STORE === 'openvsx' ? 'Open VSX' : 'the Marketplace'}">Rate</a>` + sep : '')
     + `<a href="command:${c.more}" title="Other free extensions by Zovo">More free viewers</a>` + sep
     + `<a href="command:${c.sponsor}" title="Open the GitHub Sponsors page">Sponsor</a>` + sep
     + (paypalUrl() ? `<a href="${paypalUrl()}" title="Support the developer on PayPal">PayPal</a>` + sep : '')
@@ -458,6 +561,7 @@ function showLinks(vscode, prefix) {
  */
 function registerSupport(opts) {
   const { vscode, context, prefix, selfId } = opts;
+  try { STORE = storeFor(vscode.env); } catch { STORE = 'marketplace'; }
   const c = commandIds(prefix);
   const open = (url) => vscode.env.openExternal(vscode.Uri.parse(url));
 
@@ -500,7 +604,7 @@ function registerSupport(opts) {
 
 module.exports = {
   FUNDING, GITHUB_PROFILE, SELF_ID, LIVE, QUEUED, PAIRS, RELATED, PUBLISHER_URL, SETTING, FOOTER_CSS,
-  fundingLinks, sponsorUrl, paypalUrl, marketplaceUrl, reviewUrl, pairWeight, otherProducts, relatedProducts, pickItems,
+  fundingLinks, sponsorUrl, paypalUrl, marketplaceUrl, reviewUrl, storeFor, pairWeight, otherProducts, relatedProducts, pickItems,
   commandIds, commandUris,
   footerHtml, footerMarkdown, showLinks, registerSupport,
 };

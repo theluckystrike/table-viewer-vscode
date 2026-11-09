@@ -11,7 +11,7 @@ test('More free viewers starts with 3 to 5 related extensions, without this one'
   const rel = support.relatedProducts(SELF);
   assert.ok(rel.length >= 3 && rel.length <= 5, String(rel.length));
   assert.ok(rel.every((p) => p.id !== SELF));
-  assert.deepEqual(rel.map((p) => p.id), ["zovo.sqlite-table-viewer", "zovo.zovo-jsonl-viewer", "zovo.arrow-avro-viewer", "zovo.zovo-json-tree-viewer", "zovo.docx-viewer-vscode"]);
+  assert.deepEqual(rel.map((p) => p.id), ["zovo.zovo-file-viewers", "zovo.sqlite-table-viewer", "zovo.zovo-jsonl-viewer", "zovo.arrow-avro-viewer", "zovo.zovo-json-tree-viewer"]);
   const items = support.pickItems(SELF, () => false);
   assert.equal(items[0].label, 'Related to this extension');
   assert.deepEqual(items.slice(1, 1 + rel.length).map((i) => i.product.id), rel.map((p) => p.id));
@@ -62,6 +62,23 @@ test('picking an extension opens its Marketplace page and never installs it', as
   assert.equal(ran.filter((a) => a[0] === 'workbench.extensions.installExtension').length, 0);
 });
 
-test('the extension pack is not a Related row here', () => {
-  assert.ok(!support.relatedProducts(SELF).some((p) => p.id === 'zovo.zovo-file-viewers'));
+test('EXEC5: the Office Viewer Pack is the first Related row and only opens its Marketplace page', async () => {
+  const items = support.pickItems(SELF, () => false);
+  assert.equal(items[0].label, 'Related to this extension');
+  assert.equal(items[1].product.id, 'zovo.zovo-file-viewers');
+  assert.equal(items[1].label, 'Office Viewer Pack');
+  assert.equal(items[1].detail, 'Adds the other three Office viewers in one install.');
+  assert.equal(items.filter((i) => i.product && i.product.id === 'zovo.zovo-file-viewers').length, 1);
+  const ran = [];
+  const vscode = {
+    commands: { registerCommand: () => ({ dispose() {} }), executeCommand: async (...a) => { ran.push(a); } },
+    window: { showQuickPick: async (rows) => rows.find((i) => i.product && i.product.id === 'zovo.zovo-file-viewers'), showInformationMessage: () => {} },
+    env: { openExternal: async () => true },
+    Uri: { parse: (u) => u },
+    extensions: { getExtension: () => undefined },
+    workspace: { getConfiguration: () => ({ get: (k, d) => d }) },
+  };
+  const s = support.registerSupport({ vscode, context: { subscriptions: [] }, prefix: 'x', selfId: SELF });
+  await s.moreViewers();
+  assert.deepEqual(ran, [['extension.open', 'zovo.zovo-file-viewers']]);
 });

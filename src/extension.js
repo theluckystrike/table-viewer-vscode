@@ -62,7 +62,7 @@ function userSetKeys() {
 
 function currentEntitlement() {
   // Re-check the stored key each time, so a yearly key stops on its end date without a restart.
-  if (licenseCheck && licenseCheck.key) licenseCheck = { ...verifyLicense(licenseCheck.key, { publicKey: config.LICENSE_PUBLIC_KEY }), key: licenseCheck.key };
+  if (licenseCheck && licenseCheck.key) licenseCheck = { ...verifyLicense(licenseCheck.key, { publicKey: config.LICENSE_PUBLIC_KEY, zovoPublicKey: config.ZOVO_PUBLIC_KEY }), key: licenseCheck.key };
   return entitlement(config, licenseCheck, !!(sponsors && sponsors.isPro(SPONSORS_SKU)));
 }
 
@@ -372,7 +372,7 @@ async function loadStoredLicense(context) {
   licenseCheck = null;
   try {
     const key = await context.secrets.get(config.LICENSE_SECRET);
-    if (key) licenseCheck = { ...verifyLicense(key, { publicKey: config.LICENSE_PUBLIC_KEY }), key };
+    if (key) licenseCheck = { ...verifyLicense(key, { publicKey: config.LICENSE_PUBLIC_KEY, zovoPublicKey: config.ZOVO_PUBLIC_KEY }), key };
   } catch {
     licenseCheck = null;
   }
@@ -383,10 +383,10 @@ async function enterLicenseKey(context) {
     vscode.window.showInformationMessage('Table Viewer Pro is not available yet. Every feature in this version is free.');
     return;
   }
-  const check = v => verifyLicense(v, { publicKey: config.LICENSE_PUBLIC_KEY });
+  const check = v => verifyLicense(v, { publicKey: config.LICENSE_PUBLIC_KEY, zovoPublicKey: config.ZOVO_PUBLIC_KEY });
   const raw = await vscode.window.showInputBox({
     title: 'Table Viewer: Enter license key',
-    prompt: 'Paste the key from your purchase email. It starts with TVPRO1. The check runs offline.',
+    prompt: 'Paste the key from your email. A Zovo Pro key starts with ZOVO1, an older Table Viewer key with TVPRO1. The check runs offline.',
     ignoreFocusOut: true,
     validateInput: v => (!v || !v.trim() ? null : check(v).valid ? null : check(v).message),
   });

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 (2026-11-09)
+
+- The Marketplace name is now "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer (XLS, CSV Preview)" (was "XLSX Viewer & CSV Preview for Excel, XLS & Parquet"). It brings back the exact words Excel Viewer, CSV Viewer and Parquet Viewer, and keeps XLS and CSV Preview. The extension ID, settings and commands stay the same.
+- No change to how files open or look.
+
 ## 0.4.1 (2026-11-08)
 
 - The Marketplace name is now "XLSX Viewer & CSV Preview for Excel, XLS & Parquet" (was "XLSX Viewer for Excel, CSV & Parquet"), so more searches find it. The extension ID, settings and commands stay the same.

@@ -1,8 +1,8 @@
 {
   "name": "table-viewer-vscode",
-  "displayName": "XLSX Viewer & CSV Preview for Excel, XLS & Parquet",
+  "displayName": "XLSX Viewer, Excel Viewer, CSV Viewer & Parquet Viewer (XLS, CSV Preview)",
   "description": "Free, no paywall. 1M-row CSV, formulas, filter, SQL. XLSX viewer, Excel viewer and CSV viewer with no ads and no license banner: big Excel files open fast, with sheets, sort and copy as Markdown. Also XLS, ODS and Parquet.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",

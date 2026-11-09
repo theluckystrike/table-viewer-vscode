@@ -278,7 +278,7 @@ test('resultTable: types for the grid', () => {
 // ---------- session wiring ----------
 function sessionFor(file, format = 'csv') {
   const out = [];
-  const s = createSession({ post: m => out.push(m), loader: (src, fmt, o, onPreview) => loadFile(src, fmt, o, onPreview) });
+  const s = createSession({ post: m => out.push(m), loader: (src, fmt, o, onPreview) => loadFile(src, fmt, o, onPreview), engine: require('../src/core/sql/engine') });
   return { s, out, open: () => s.handle({ type: 'open', source: { path: file }, format, options: {} }) };
 }
 const last = (out, type) => out.filter(m => m.type === type).pop();
@@ -359,6 +359,22 @@ test('session: other sheets of the workbook by name; files only when the host al
   assert.match(last(out, 'queryDone').error, /not checked by the editor/);
   await s.handle({ type: 'query', sql: 'SELECT * FROM nosuch' });
   assert.match(last(out, 'queryDone').error, /Sheets: "Orders", "Customer List"/);
+});
+
+test('session without an engine (the extension host copy) answers queries with a message', async () => {
+  const out = [];
+  const s = createSession({ post: m => out.push(m), loader: (src, fmt, o, onPreview) => loadFile(src, fmt, o, onPreview) });
+  await s.handle({ type: 'open', source: { path: ordersPath }, format: 'csv', options: {} });
+  await s.handle({ type: 'query', sql: 'SELECT 1' });
+  assert.match(last(out, 'queryDone').error, /not available/);
+});
+
+test('the extension host bundle does not carry the readers or the query engine', () => {
+  const dist = path.join(__dirname, '..', 'dist', 'extension.js');
+  if (!fs.existsSync(dist)) return;
+  const size = fs.statSync(dist).size;
+  assert.ok(size < 300 * 1024, `dist/extension.js is ${size} bytes`);
+  assert.ok(!fs.readFileSync(dist, 'utf8').includes('fetch with range failed'), 'hyparquet is not in the host bundle');
 });
 
 test('webview messages: query, queryCancel, queryBack and parquet export validate', () => {

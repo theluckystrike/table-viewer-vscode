@@ -120,7 +120,11 @@ function columnsMeta(table) {
 /**
  * Worker-side session. post(msg) sends to the host. loader(source, format, options, onPreview, sheet) loads a table.
  */
-function createSession({ post, loader, now = () => Date.now(), writeFile = null }) {
+/**
+ * engine: the query engine (src/core/sql/engine.js), passed in by the worker. Without it, queries and Parquet export
+ * answer with a message (the extension host imports this file only to validate messages).
+ */
+function createSession({ post, loader, now = () => Date.now(), writeFile = null, engine = null }) {
   let table = null;
   let info = {};
   let loadSheet = null;
@@ -414,8 +418,9 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
   async function runQuery(msg) {
     if (running) return post({ type: 'queryDone', ok: false, error: 'A query is already running. Cancel it first.' });
     if (!lastOpen || loading || !(saved ? saved.table : table)) return post({ type: 'queryDone', ok: false, error: 'Still loading. Queries start when all rows are in.' });
-    const sqlMod = require('./sql/exec');
-    const { createResolver, resultTable } = require('./sql/index');
+    if (!engine) return post({ type: 'queryDone', ok: false, error: 'Queries are not available here.' });
+    const sqlMod = engine;
+    const { createResolver, resultTable } = engine;
     const id = ++queryId;
     const t0 = now();
     const notes = [];
@@ -486,7 +491,8 @@ function createSession({ post, loader, now = () => Date.now(), writeFile = null 
     if (msg.format === 'parquet') {
       if (!msg.path) return reply({ ok: false, error: 'Parquet files can be saved only to a folder on this computer.' });
       try {
-        const bytes = await require('./parquetout').writeParquet(msg.path, table);
+        if (!engine) throw new Error('Parquet export is not available here.');
+        const bytes = await engine.writeParquet(msg.path, table);
         return reply({ ok: true, rows, bytes, ms: now() - t0 });
       } catch (e) {
         return reply({ ok: false, error: e && e.message ? e.message : String(e) });

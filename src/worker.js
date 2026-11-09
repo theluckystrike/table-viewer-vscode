@@ -10,6 +10,7 @@ const session = createSession({
   post: msg => parentPort.postMessage(msg),
   loader: (source, format, options, onPreview) => loadFile(source, format, options, onPreview),
   writeFile: writeChunks,
+  engine: require('./core/sql/engine'),
 });
 
 parentPort.on('message', msg => {

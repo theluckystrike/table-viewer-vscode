@@ -11,6 +11,13 @@ An XLSX viewer, Excel viewer, CSV viewer and Parquet viewer for VS Code, with SQ
 
 *A real VS Code 1.142 window. The 250 MB CSV (4,283,297 generated taxi trips) is past the table's 1,000,000-row limit, so the table shows the first part and the query reads the whole file as a stream: 3.1 s on an M-series Mac.*
 
+## Teams and companies
+
+- Zovo Pro Team is the company licence: USD 59 once for a team of 5, one key, the Pro tools in every Zovo extension that has them. [See Zovo Pro Team](https://license.zovo.one/buy/zovo-pro-team?client_reference_id=readme-xlsx)
+- Commercial use is allowed.
+- The key is checked on your computer, so it works offline. No account and no subscription.
+- Invoice with your company name and tax ID on request: support@zovo.one.
+
 ## SQL queries on CSV, Excel and Parquet (new in 0.5)
 
 Click Query in the toolbar, write a SELECT, press Ctrl+Enter (Cmd+Enter on a Mac).
